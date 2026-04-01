@@ -1,0 +1,217 @@
+{
+  "overview": {
+    "deviceManufacturer": "Boston Scientific",
+    "deviceType": "CRT-ICD",
+    "deviceStatus": [
+      {
+        "batteryRemaining": "6.5 years",
+        "battery_LastCheck": "Jun 17, 2025"
+      },
+      {
+        "batteryVoltage": null
+      },
+      {
+        "RA_sense": "2.3 mV",
+        "RAsense_LastCheck": "Jun 16, 2025, Most Recent Daily Measurement"
+      },
+      {
+        "RA_impedance": "680 Ω",
+        "RAimpedance_LastCheck": "Jun 16, 2025, Most Recent Daily Measurement"
+      },
+      {
+        "RA_threshold": "0.4 V @ 0.4 ms",
+        "RAthreshold_LastCheck": "Jun 16, 2025, Most Recent Daily Measurement"
+      },
+      {
+        "RV_sense": "3.4 mV",
+        "RVsense_LastCheck": "Jun 16, 2025, Most Recent Daily Measurement"
+      },
+      {
+        "RV_impedance": "331 Ω",
+        "RVimpedance_LastCheck": "Jun 16, 2025, Most Recent Daily Measurement"
+      },
+      {
+        "RV_threshold": "1.9 V @ 0.4 ms",
+        "RVthreshold_LastCheck": "May 28, 2025, Most Recent In-Office Measurement"
+      },
+      {
+        "LV_sense": "10.9 mV",
+        "LVsense_LastCheck": "Jun 16, 2025, Most Recent Daily Measurement"
+      },
+      {
+        "LV_impedance": "1012 Ω",
+        "LVimpedance_LastCheck": "Jun 16, 2025, Most Recent Daily Measurement"
+      },
+      {
+        "LV_threshold": "1.3 V @ 0.4 ms",
+        "LVthreshold_LastCheck": "May 28, 2025, Most Recent In-Office Measurement"
+      },
+      {
+        "ICD_coil": "60 Ω",
+        "Coil_LastCheck": "Jun 16, 2025, Most Recent Daily Measurement"
+      }
+    ],
+    "deviceHealth": [
+      {
+        "batteryStatus": "OK",
+        "batteryRisk": "Low"
+      },
+      {
+        "RAsense_change": "Stable, fluctuating between 2.0-4.0 mV.",
+        "RAsense_risk": "low"
+      },
+      {
+        "RAimpedance_change": "Stable, fluctuating between approximately 650-800 Ω.",
+        "RAimpedance_risk": "low"
+      },
+      {
+        "RAthreshold_change": "Stable, consistently around 0.4-0.5 V @ 0.4 ms.",
+        "RAthreshold_risk": "low"
+      },
+      {
+        "RVsense_change": "Stable, consistently > 3.0 mV.",
+        "RVsense_risk": "low"
+      },
+      {
+        "RVimpedance_change": "Stable with a slight downward trend from ~400 to 331 Ω.",
+        "RVimpedance_risk": "low"
+      },
+      {
+        "RVthreshold_change": "In-office threshold was 1.9 V @ 0.4 ms. Daily auto-threshold data has not been recently collected. The trend graph shows values previously between 1.0-2.0V.",
+        "RVthreshold_risk": "moderate"
+      },
+      {
+        "LVsense_change": "Variable but consistently high amplitude, ranging from 4.0 mV to >25.0 mV.",
+        "LVsense_risk": "low"
+      },
+      {
+        "LVimpedance_change": "Stable, trending slightly down from ~1100 Ω to 1012 Ω.",
+        "LVimpedance_risk": "low"
+      },
+      {
+        "LVthreshold_change": "Stable, last in-office measurement was 1.3 V @ 0.4 ms.",
+        "LVthreshold_risk": "low"
+      },
+      {
+        "ICDcoil_change": "Stable between 60-70 Ω.",
+        "Coil_risk": "low"
+      },
+      {
+        "alerts_shocks_alarms": "No alerts to display. Two episodes of non-sustained ventricular tachycardia (NonSustV) were recorded since the last reset. No therapies (ATP or shocks) were delivered."
+      }
+    ],
+    "deviceSettings": [
+      {
+        "pacingMode": "DDDR",
+        "LRL": "60 bpm",
+        "MTR": "130 ppm",
+        "MSR": "130 ppm",
+        "sensedAVdelays": "80 - 120 ms",
+        "pacedAVdelays": "120 - 180 ms",
+        "LV_offset": "0 ms",
+        "CRT_chamber": "BiV",
+        "VTmonitor_zone": "150 bpm (VT-1), Monitor Only",
+        "VT1_zone": "180 bpm (VT), Scan ATP x3, followed by 41 J shocks",
+        "VT2_zone": "Not programmed",
+        "VF_zone": "230 bpm, QUICK CONVERT™ ATP, followed by 41 J shocks"
+      }
+    ],
+    "deviceUsage": [
+      {
+        "A_pacing": "96% (as of Jun 17, 2025)",
+        "V_pacing": "RV 95%, LV 99% (as of Jun 17, 2025)",
+        "BiV_pacing": "99% (as of Jun 17, 2025)",
+        "HF_metric": "Increasing. The HeartLogic™ Heart Failure Index has risen to 10. This is supported by trends of increasing S3 heart sound, decreasing thoracic impedance, and increasing respiratory rate, suggesting worsening fluid retention. Patient activity level remains low."
+      }
+    ],
+    "rhythmSummary": [
+      {
+        "SVT_totals": 0,
+        "SVT_duration": "N/A",
+        "SVT_rate": "N/A",
+        "AF_burden": "0.0%",
+        "AMS_episodeCount": 0,
+        "AF_duration": "00:00:00:00",
+        "AF_rate": "N/A",
+        "AF_change": "Stable, no significant burden.",
+        "VT_totals": 5,
+        "VT_recents": 2,
+        "NSVT_totals": 5,
+        "VT_duration": "00:00:14",
+        "VT_rate": "181 bpm",
+        "ATP_treated": 0,
+        "Shock_treated": 0,
+        "VT_burden": "Stable, low burden of infrequent, brief, self-terminating NSVT episodes.",
+        "ATP_success": "N/A",
+        "Shock_success": "N/A",
+        "AF_risk": "low",
+        "AFRVR_risk": "low",
+        "VT_risk": "low"
+      }
+    ]
+  },
+  "detailed_page": {
+    "detailed_page": [
+      {
+        "Page_analysis": "Page 1: Combined Follow-up Report - Summary. This page displays patient and device identifiers, battery status (OK, 6.5 years remaining), a list of recent events (RA Auto), and a table of lead measurements. Atrial, RV, and LV lead parameters (intrinsic amplitude, pace impedance, pace threshold) are all stable and within acceptable ranges based on implant, in-office, and daily measurements. Shock impedance is also stable and normal."
+      },
+      {
+        "Page_analysis": "Page 2: Settings Summary. This page outlines the programmed parameters for ventricular and atrial tachyarrhythmias, as well as Brady/CRT settings. The device is programmed DDDR 60-130 ppm with BiV pacing. Tachycardia detection is set for VT-1 at 150 bpm (Monitor), VT at 180 bpm (ATP then Shock), and VF at 230 bpm (ATP then Shock)."
+      },
+      {
+        "Page_analysis": "Page 3: HeartLogic™ Heart Failure Index and Trends. The HeartLogic index is currently 10, with the trend graph showing a recent rise. The alert is noted to be disabled. Accompanying graphs show trends consistent with this finding: S3 heart sound is rising, S1 is stable, thoracic impedance is decreasing, and respiratory rate is increasing. These collectively suggest worsening fluid retention."
+      },
+      {
+        "Page_analysis": "Page 4: Trend Graphs (Patient Activity). This page displays trends for night heart rate (stable), sleep incline (insufficient data), activity level (low but stable), AT/AF burden (zero), overall heart rate (stable), and pacing percentages. Pacing percentages are high (Atrial 96%, RV 95%, LV 99%), which is expected and desired for CRT therapy."
+      },
+      {
+        "Page_analysis": "Page 5: Trend Graphs (Lead Performance - Atrial & RV). This page provides trend graphs for atrial and right ventricular lead parameters. Atrial intrinsic amplitude, pace impedance, and auto pace threshold are all stable. RV intrinsic amplitude and pace impedance are stable. The RV auto pace threshold graph notes 'No data collected' recently."
+      },
+      {
+        "Page_analysis": "Page 6: Trend Graphs (Lead Performance - LV & Shock) and Tachy Counters. LV intrinsic amplitude is variable but robust, and LV pace impedance is stable. Shock impedance is stable. The Ventricular Tachy Counters table shows 2 non-sustained ventricular episodes since the last reset (May 28, 2025) and a total of 5 device lifetime episodes, none of which required therapy."
+      },
+      {
+        "Page_analysis": "Page 7: Brady/CRT and Clinical Counters. This page details pacing percentages and arrhythmia counts over the last 20 days. It confirms high biventricular pacing (RV 93%, LVa 98%) and a negligible AT/AF burden (0%)."
+      },
+      {
+        "Page_analysis": "Page 8: Rate Histograms. These graphs illustrate the distribution of atrial and ventricular rates, both paced and sensed. The data confirms the patient is predominantly biventricularly paced in the 60-70 bpm range, consistent with programmed settings."
+      },
+      {
+        "Page_analysis": "Page 9: Histogram Rate Counts (Atrial & RV). This table provides a numerical breakdown of the histogram data, quantifying the number of paced and sensed events at various heart rates for the atrial and RV leads."
+      },
+      {
+        "Page_analysis": "Page 10: Histogram Rate Counts (LV & RV during AT/AF). This table continues the rate count data for the LV lead, which mirrors the RV data. There is no significant data for RV rate during AT/AF due to the absence of the arrhythmia."
+      },
+      {
+        "Page_analysis": "Page 11: Heart Rate Variability. States that data is unavailable."
+      },
+      {
+        "Page_analysis": "Page 12: Presenting EGM (Jun 17, 2025). Displays intracardiac electrograms showing normal device function with consistent atrial pacing followed by biventricular pacing (AP-BiVP). Cycle lengths are ~983-1000 ms, corresponding to a rate of ~60-61 bpm."
+      },
+      {
+        "Page_analysis": "Page 13: Presenting EGM (continued). A continuation of the EGM strip from page 12, showing ongoing stable AP-BiVP rhythm."
+      },
+      {
+        "Page_analysis": "Page 14: Presenting EGM (end) and Event List. Concludes the EGM strip and lists all events since the last reset, including two NonSustV episodes. It also provides more detailed battery information."
+      },
+      {
+        "Page_analysis": "Pages 15-17: Presenting EGM Report. This is a standalone report that duplicates the EGM content from pages 12-14."
+      },
+      {
+        "Page_analysis": "Pages 18-21: Heart Failure Management Report. A standalone report duplicating the HeartLogic™ data from pages 3-4, but with an additional detailed daily trend data table on pages 20-21. This table clearly quantifies the day-by-day worsening of HF metrics, with the HeartLogic Index climbing from 3 to 10 over two weeks."
+      },
+      {
+        "Page_analysis": "Page 22: Arrhythmia Logbook Report. This report lists the 5 most recent stored arrhythmia events, confirming the two NonSustV episodes on Jun 05, 2025 (V-5) and May 30, 2025 (V-4)."
+      },
+      {
+        "Page_analysis": "Pages 23-26: Device Settings Report. A detailed, multi-page report listing all currently programmed device parameters, providing comprehensive information on tachy and brady settings."
+      },
+      {
+        "Page_analysis": "Pages 27-30: Event Detail Report (V-5). This report provides a detailed analysis of the NonSustV episode from Jun 05, 2025. The EGM on pages 27-29 with annotations on page 28 shows a brief run of ventricular tachycardia at 181 bpm that self-terminated after 13 seconds. The device correctly identified the arrhythmia and withheld therapy as it was non-sustained. The interval plot on page 30 visually confirms the sudden onset and termination of the fast ventricular rhythm."
+      }
+    ]
+  },
+  "comprehensive_narrative_analysis": {
+    "summary": "This is a comprehensive interrogation of a Boston Scientific CRT-ICD. The device and leads are functioning well, with excellent battery longevity and stable lead parameters. The patient is receiving a high percentage of biventricular pacing (>95%), which is the intended goal of cardiac resynchronization therapy. The arrhythmia burden is very low, with no significant atrial fibrillation and only two recent, brief, non-sustained ventricular tachycardia episodes that were appropriately monitored and self-terminated without requiring therapy. The most clinically significant finding is a clear trend towards worsening heart failure, as indicated by the rising HeartLogic™ index (now at 10), increasing S3 sound, and decreasing thoracic impedance. These objective measures suggest increasing fluid retention and warrant clinical correlation and potential intervention, especially as the associated alert is currently disabled."
+  }
+}

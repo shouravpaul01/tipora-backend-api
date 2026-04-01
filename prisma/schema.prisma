@@ -1,0 +1,64 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+ 
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  name   String
+  email  String     @unique
+  phone  String?    @unique
+  photo  String?
+  role   UserRole   @default(USER)
+  status UserStatus @default(ACTIVE)
+
+  isEmailVerified Boolean @default(false)
+  isPhoneVerified Boolean @default(false)
+  isDeleted       Boolean @default(false)
+
+  // ── Relations ─────────────────────────────────────
+  auth UserAuth?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model UserAuth {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  password    String
+  passwordChangedAt DateTime?
+  lastLoginAt       DateTime?
+
+  // ── Relation ──────────────────────────────────────
+  userId String @unique @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_auths")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
