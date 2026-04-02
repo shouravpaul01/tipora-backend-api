@@ -9,7 +9,7 @@ import redis from "../../../shared/redis";
 import { jwtHelpers } from "../../../helpers/jwtHelpers";
 import { generateOtp } from "../../../utils/generateOtp";
 import { env } from "../../../config/env.config";
-
+import ApiError from "../../../errors/ApiErrors";
 
 const setTokenCookies = (res: any, userId: string, role: string) => {
   const accessToken = jwtHelpers.generateToken(
@@ -74,8 +74,8 @@ const register = async (payload: {
 
   // store OTP in Redis — key: otp:register:<email>
   const otp = generateOtp();
-  const otpData=await redis.set(`otp:register:${user.email}`, otp, "EX", 5 * 60);
-console.log("otpData",otpData)
+  await redis.set(`otp:register:${user.email}`, otp, "EX", 5 * 60);
+
   await emailSender({
     to: user.email,
     subject: "Your verification OTP",
@@ -87,25 +87,25 @@ console.log("otpData",otpData)
 
 // ── verify OTP (email verification) ──────────────────
 
-const verifyOtp = async (payload: { email: string; otp: string }, res: any) => {
-  console.log(payload)
+const verifyOtp = async (
+  payload: { email: string; otp: string; fcmToken?: string },
+  res: any,
+) => {
   const storedOtp = await redis.get(`otp:register:${payload.email}`);
   if (!storedOtp || storedOtp !== payload.otp) {
-    throw new ApiPathError(
-      httpStatus.BAD_REQUEST,
-      "otp",
-      "Invalid or expired OTP.",
-    );
+    throw new ApiPathError(httpStatus.BAD_REQUEST, "otp", "Invalid or expired OTP.");
   }
 
   const user = await prisma.user.update({
     where: { email: payload.email },
-    data: { isEmailVerified: true },
+    data: {
+      isEmailVerified: true,
+      ...(payload.fcmToken && { fcmToken: payload.fcmToken }), 
+    },
     select: { id: true, fullName: true, email: true, role: true },
   });
 
   await redis.del(`otp:register:${payload.email}`);
-
   const tokens = setTokenCookies(res, user.id, user.role);
   return { user, ...tokens };
 };
@@ -113,7 +113,7 @@ const verifyOtp = async (payload: { email: string; otp: string }, res: any) => {
 // ── login ─────────────────────────────────────────────
 
 const login = async (
-  payload: { email: string; password: string },
+  payload: { email: string; password: string; fcmToken?: string },
   res: any,
 ) => {
   const user = await prisma.user.findUnique({
@@ -122,24 +122,15 @@ const login = async (
   });
 
   if (!user || !user.auth) {
-    throw new ApiPathError(
+    throw new ApiError(
       httpStatus.UNAUTHORIZED,
-      "email",
       "Invalid credentials.",
     );
   }
   if (user.status === "BLOCKED") {
-    throw new ApiPathError(
+    throw new ApiError(
       httpStatus.FORBIDDEN,
-      "email",
       "Your account is blocked.",
-    );
-  }
-  if (!user.isEmailVerified) {
-    throw new ApiPathError(
-      httpStatus.FORBIDDEN,
-      "email",
-      "Please verify your email first.",
     );
   }
 
@@ -148,10 +139,26 @@ const login = async (
     user.auth.password,
   );
   if (!passwordMatch) {
-    throw new ApiPathError(
+    throw new ApiError(
       httpStatus.UNAUTHORIZED,
-      "password",
       "Invalid credentials.",
+    );
+  }
+
+  // ── If email exists but not verified──────
+  if (!user.isEmailVerified) {
+    const otp = generateOtp();
+    await redis.set(`otp:register:${user.email}`, otp, "EX", 5 * 60);
+
+    await emailSender({
+      to: user.email,
+      subject: "Verify your email",
+      html: `Your OTP is ${otp}. It expires in 5 minutes.`,
+    });
+
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "Email not verified. A new OTP has been sent to your email.",
     );
   }
 
@@ -159,6 +166,13 @@ const login = async (
     where: { userId: user.id },
     data: { lastLoginAt: new Date() },
   });
+
+  if (payload.fcmToken) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { fcmToken: payload.fcmToken },
+    });
+  }
 
   const { auth, ...safeUser } = user;
   const tokens = setTokenCookies(res, user.id, user.role);
@@ -172,8 +186,7 @@ const forgotPassword = async (payload: { email: string }) => {
     where: { email: payload.email },
   });
   if (!user) {
-    // Don't reveal if email exists — silently succeed
-    return { message: "If this email exists, an OTP has been sent." };
+    throw new ApiError(httpStatus.NOT_FOUND, "User don't exists.");
   }
 
   const otp = generateOtp();
@@ -203,10 +216,10 @@ const verifyResetOtp = async (payload: { email: string; otp: string }) => {
   await redis.del(`otp:reset:${payload.email}`);
 
   // Issue a short-lived, single-use reset token (JWT)
-  const resetToken = jwt.sign(
+  const resetToken = jwtHelpers.generateToken(
     { email: payload.email, purpose: "password_reset" },
-    process.env.JWT_RESET_SECRET!,
-    { expiresIn: "10m" },
+    env.RESET_PASS_TOKEN!,
+    env.RESET_PASS_TOKEN_EXPIRES_IN,
   );
 
   // Store token hash in Redis to enforce single-use
@@ -230,7 +243,7 @@ const resetPassword = async (payload: {
   try {
     decoded = jwtHelpers.verifyToken(
       payload.resetToken,
-      process.env.JWT_RESET_SECRET!,
+      env.RESET_PASS_TOKEN!,
     ) as any;
   } catch {
     throw new ApiPathError(
@@ -239,7 +252,7 @@ const resetPassword = async (payload: {
       "Invalid or expired reset token.",
     );
   }
-
+console.log("decoded",decoded)
   if (decoded.purpose !== "password_reset") {
     throw new ApiPathError(
       httpStatus.BAD_REQUEST,
@@ -312,10 +325,60 @@ const refreshToken = async (token: string, res: any) => {
   const tokens = setTokenCookies(res, user.id, user.role);
   return tokens;
 };
+// ── change password ───────────────────────────────────
 
+const changePassword = async (
+  userId: string,
+  payload: { currentPassword: string; newPassword: string },
+) => {
+  const userAuth = await prisma.userAuth.findUnique({
+    where: { userId },
+  });
+
+  if (!userAuth) {
+    throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
+  }
+
+  const passwordMatch = await bcrypt.compare(
+    payload.currentPassword,
+    userAuth.password,
+  );
+  if (!passwordMatch) {
+    throw new ApiPathError(
+      httpStatus.UNAUTHORIZED,
+      "currentPassword",
+      "Current password is incorrect.",
+    );
+  }
+
+  if (payload.currentPassword === payload.newPassword) {
+    throw new ApiPathError(
+      httpStatus.BAD_REQUEST,
+      "newPassword",
+      "New password must be different from current password.",
+    );
+  }
+
+  const hashedPassword = await bcrypt.hash(payload.newPassword, 12);
+
+  await prisma.userAuth.update({
+    where: { userId },
+    data: {
+      password: hashedPassword,
+      passwordChangedAt: new Date(),
+    },
+  });
+
+  return { message: "Password changed successfully." };
+};
 // ── logout ────────────────────────────────────────────
 
-const logout = (res: any) => {
+const logout = async (userId: string, res: any) => { 
+  await prisma.user.update({ // ← add
+    where: { id: userId },
+    data: { fcmToken: null },
+  });
+
   res.clearCookie("accessToken");
   res.clearCookie("refreshToken");
   return { message: "Logged out successfully." };
@@ -329,5 +392,6 @@ export const AuthServices = {
   verifyResetOtp,
   resetPassword,
   refreshToken,
+  changePassword,
   logout,
 };

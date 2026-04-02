@@ -2,6 +2,7 @@ import { Router } from "express";
 import validateRequest from "../../middlewares/validateRequest";
 import { AuthValidations } from "./auth.validation";
 import { AuthControllers } from "./auth.controller";
+import auth from "../../middlewares/auth";
 
 const router = Router();
 
@@ -52,5 +53,15 @@ router.post(
   validateRequest(AuthValidations.resetPassword),
   AuthControllers.resetPassword
 );
-
+router.patch(
+  "/change-password",
+  auth(),
+  validateRequest(AuthValidations.changePassword),
+  AuthControllers.changePassword,
+);
+router.post(
+  "/logout",
+  auth(),
+  AuthControllers.logout
+);
 export const AuthRoutes = router;

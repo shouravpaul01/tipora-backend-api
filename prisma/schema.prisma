@@ -21,7 +21,7 @@ model User {
   phone     String?
   photo     String?
   bio       String?  
-  fcmToken  String     
+  fcmToken  String?     
 
 
   role   UserRole   @default(USER)
@@ -154,7 +154,7 @@ model Transaction {
 
   // ── Amounts ───────────────────────────────────
   amount      Float
-  platformFee Float  @default(0) // app cut (e.g. 5%)
+  platformFee Float  @default(0) // app cut (e.g. 3%)
   netAmount   Float              // receiver 
   currency    String @default("usd")
 

@@ -76,7 +76,16 @@ const refreshToken = catchAsync(async (req: Request, res: Response) => {
 });
 
 const logout = catchAsync(async (req: Request, res: Response) => {
-  const result = AuthServices.logout(res);
+  const result = await AuthServices.logout(req.user.id,res);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: result?.message,
+    data: null,
+  });
+});
+const changePassword = catchAsync(async (req: Request, res: Response) => {
+  const result = await AuthServices.changePassword(req.user.id, req.body);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -84,7 +93,6 @@ const logout = catchAsync(async (req: Request, res: Response) => {
     data: null,
   });
 });
-
 export const AuthControllers = {
   register,
   verifyOtp,
@@ -93,5 +101,6 @@ export const AuthControllers = {
   verifyResetOtp,
   resetPassword,
   refreshToken,
+  changePassword,
   logout,
 };
