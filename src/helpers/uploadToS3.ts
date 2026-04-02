@@ -5,54 +5,63 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import config from "../config";
+import { Upload } from "@aws-sdk/lib-storage";
+
 import ApiError from "../errors/ApiErrors";
 import httpStatus from "http-status";
+import { env } from "../config/env.config";
+import path from "path";
 
 // Configure DigitalOcean Spaces
 const s3 = new S3Client({
-  region: "nyc3",
-  endpoint: config.s3.do_space_endpoint,
+  region: "us-east-1",
+  endpoint:env?.AWS_S3_ENDPOINT, 
+  forcePathStyle: true,
   credentials: {
-    accessKeyId: config.s3.do_space_accesskey || "", 
-    secretAccessKey: config.s3.do_space_secret_key || "", 
+    accessKeyId: env.AWS_S3_ACCESS_KEY!,
+    secretAccessKey: env.AWS_S3_SECRET_KEY!,
   },
 });
 
-// Function to upload a file to DigitalOcean Space
 export const uploadFileToS3 = async (
-  // eslint-disable-next-line no-undef
   file: Express.Multer.File
-) => {
-  if (!process.env.DO_SPACE_BUCKET) {
-    throw new Error(
-      "DO_SPACE_BUCKET is not defined in the environment variables."
-    );
-  }
-  const slug = file.originalname
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9\-\.]/g, "");
-  const params = {
-    Bucket: process.env.DO_SPACE_BUCKET, 
-    Key: `tourismhub/${Date.now()}_${slug}`, 
-   
-    Body: file.buffer, 
-    ContentType: file.mimetype,
-    ACL: "public-read" as ObjectCannedACL, 
-  };
-
+): Promise<{ fileUrl: string }> => {
   try {
-    await s3.send(new PutObjectCommand(params));
-    // console.log(result, "check result");
-    return `https://${config.s3.do_space_bucket}.${(
-      config.s3.do_space_endpoint || "nyc3.digitaloceanspaces.com"
-    ).replace("https://", "")}/${params.Key}`;
+    if (!file) {
+      throw new Error("No file provided");
+    }
+
+    const fileExtension = path.extname(file.originalname);
+    const fileName = `uploads/${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2, 15)}${fileExtension}`;
+
+    const upload = new Upload({
+      client: s3,
+      params: {
+        Bucket: env.AWS_S3_BUCKET,
+        Key: fileName,
+        Body: file.buffer, 
+        ContentType: file.mimetype,
+        ACL: "public-read",
+      },
+    });
+
+    await upload.done();
+
+    const fileUrl = `${env.AWS_S3_ENDPOINT}/${env.AWS_S3_BUCKET}/${fileName}`;
+
+    return { fileUrl };
   } catch (error) {
     console.error("Error uploading file:", error);
-    throw error;
+    throw new Error(
+      error instanceof Error
+        ? `Failed to upload file: ${error.message}`
+        : "Failed to upload file"
+    );
   }
 };
+
 
 export const deleteFromCloud = async (fileUrl: string): Promise<void> => {
   try {

@@ -1,12 +1,13 @@
 import { NextFunction, Request, Response } from "express";
 
 import { Secret } from "jsonwebtoken";
-import config from "../../config";
+
 
 import httpStatus from "http-status";
 import ApiError from "../../errors/ApiErrors";
 import { jwtHelpers } from "../../helpers/jwtHelpers";
 import prisma from "../../shared/prisma";
+import { env } from "../../config/env.config";
 
 const auth = (...roles: string[]) => {
   return async (
@@ -23,7 +24,7 @@ const auth = (...roles: string[]) => {
 
       const verifiedUser = jwtHelpers.verifyToken(
         token,
-        config.jwt.jwt_secret as Secret
+        env.JWT_SECRET as Secret
       );
 
       const user = await prisma.user.findUnique({

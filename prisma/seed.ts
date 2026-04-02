@@ -1,7 +1,5 @@
-
 import bcrypt from "bcrypt";
 import prisma from "../src/shared/prisma";
-
 
 export const initiateSuperAdmin = async () => {
   const existingAdmin = await prisma.user.findFirst({
@@ -17,10 +15,17 @@ export const initiateSuperAdmin = async () => {
 
   await prisma.user.create({
     data: {
-      name: "Super Admin",
+      firstName: "Super",
+      lastName: "Admin",
+      fullName: "Super Admin",
       email: "admin@example.com",
-      password: hashedPassword,
+
       role: "ADMIN",
+      auth: {
+        create: {
+          password: hashedPassword,
+        },
+      },
     },
   });
 

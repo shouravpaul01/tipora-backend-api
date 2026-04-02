@@ -7,17 +7,19 @@ import emailSender from "../../../helpers/emailSender";
 import ApiPathError from "../../../errors/ApiPathError";
 import redis from "../../../shared/redis";
 import { jwtHelpers } from "../../../helpers/jwtHelpers";
-import config from "../../../config";
+import { generateOtp } from "../../../utils/generateOtp";
+import { env } from "../../../config/env.config";
+
 
 const setTokenCookies = (res: any, userId: string, role: string) => {
   const accessToken = jwtHelpers.generateToken(
     { id: userId, role },
-    config.jwt.jwt_secret!,
+    env.JWT_SECRET,
     "15m",
   );
   const refreshToken = jwtHelpers.generateToken(
     { id: userId, role },
-    config.jwt.refresh_token_secret!,
+    env.REFRESH_TOKEN_SECRET!,
     "7d",
   );
 
@@ -40,7 +42,8 @@ const setTokenCookies = (res: any, userId: string, role: string) => {
 // ── register ─────────────────────────────────────────
 
 const register = async (payload: {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
   phone?: string;
@@ -66,13 +69,13 @@ const register = async (payload: {
         create: { password: hashedPassword },
       },
     },
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, fullName: true, email: true, role: true },
   });
 
   // store OTP in Redis — key: otp:register:<email>
   const otp = generateOtp();
-  await redis.set(`otp:register:${user.email}`, otp, "EX", 5 * 60);
-
+  const otpData=await redis.set(`otp:register:${user.email}`, otp, "EX", 5 * 60);
+console.log("otpData",otpData)
   await emailSender({
     to: user.email,
     subject: "Your verification OTP",
@@ -85,6 +88,7 @@ const register = async (payload: {
 // ── verify OTP (email verification) ──────────────────
 
 const verifyOtp = async (payload: { email: string; otp: string }, res: any) => {
+  console.log(payload)
   const storedOtp = await redis.get(`otp:register:${payload.email}`);
   if (!storedOtp || storedOtp !== payload.otp) {
     throw new ApiPathError(
@@ -97,7 +101,7 @@ const verifyOtp = async (payload: { email: string; otp: string }, res: any) => {
   const user = await prisma.user.update({
     where: { email: payload.email },
     data: { isEmailVerified: true },
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, fullName: true, email: true, role: true },
   });
 
   await redis.del(`otp:register:${payload.email}`);
@@ -283,7 +287,7 @@ const resetPassword = async (payload: {
 const refreshToken = async (token: string, res: any) => {
   let decoded: { id: string; role: string };
   try {
-    decoded = jwtHelpers.verifyToken(token, config.jwt.jwt_secret!) as any;
+    decoded = jwtHelpers.verifyToken(token, env?.REFRESH_TOKEN_SECRET!) as any;
   } catch {
     throw new ApiPathError(
       httpStatus.UNAUTHORIZED,

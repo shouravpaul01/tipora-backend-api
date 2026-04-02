@@ -5,7 +5,6 @@
 
 generator client {
   provider = "prisma-client-js"
- 
 }
 
 datasource db {
@@ -16,12 +15,14 @@ datasource db {
 model User {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  name   String
-  email  String     @unique
-  phone  String?    @unique
-  photo  String?
-  role   UserRole   @default(USER)
-  status UserStatus @default(ACTIVE)
+  firstName String
+  lastName  String
+  fullName  String?
+  email     String     @unique
+  phone     String?  
+  photo     String?
+  role      UserRole   @default(USER)
+  status    UserStatus @default(ACTIVE)
 
   isEmailVerified Boolean @default(false)
   isPhoneVerified Boolean @default(false)
@@ -39,7 +40,7 @@ model User {
 model UserAuth {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  password    String
+  password          String
   passwordChangedAt DateTime?
   lastLoginAt       DateTime?
 

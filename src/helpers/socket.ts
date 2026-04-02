@@ -1,13 +1,14 @@
 import { Server } from "socket.io";
 import { Server as HTTPServer } from "http";
-import config from "../config";
+import { env } from "../config/env.config";
+
 
 let io: Server | null = null;
 
 export const initializeSocket = (server: HTTPServer) => {
   io = new Server(server, {
     cors: {
-      origin: config.frontend_url,
+      origin: env.FRONTEND_URL,
       methods: ["GET", "POST"],
       credentials: true,
     },

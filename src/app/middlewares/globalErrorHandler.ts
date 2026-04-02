@@ -8,9 +8,10 @@ import handleValidationError from "../../errors/handleValidationError";
 import handleZodError from "../../errors/handleZodError";
 import parsePrismaValidationError from "../../errors/parsePrismaValidationError";
 import { IGenericErrorMessage } from "../../interfaces/error";
-import config from "../../config";
+
 import { TokenExpiredError } from "jsonwebtoken";
 import ApiPathError from "../../errors/ApiPathError";
+import { env } from "../../config/env.config";
 
 const GlobalErrorHandler = (
   error: any,
@@ -190,7 +191,7 @@ const GlobalErrorHandler = (
     message,
     errorMessages,
     err: error,
-    stack: config.env !== "production" ? error?.stack : undefined,
+    stack: env.NODE_ENV !== "production" ? error?.stack : undefined,
   });
 };
 

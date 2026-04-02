@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1009.0",
+    "@aws-sdk/lib-storage": "^3.1022.0",
     "@google/genai": "^1.45.0",
     "@prisma/client": "6.19",
     "@types/jsonwebtoken": "^9.0.10",

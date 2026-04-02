@@ -1,17 +1,18 @@
 import { createServer } from "http";
 import app from "./app";
-import config from "./config";
+
 import { initializeSocket } from "./helpers/socket";
 import redis from "./shared/redis";
+import { env } from "./config/env.config";
 const httpServer = createServer(app);
 initializeSocket(httpServer);
 // Main function to start the server
-async  function main() {
-   await redis.ping();
-  const server = httpServer.listen(Number(config.port), () => {
+async function main() {
+  await redis.ping();
+  const server = httpServer.listen(Number(env.PORT), () => {
     console.log(
       "Server is running on port ==>",
-      `http://localhost:${config.port}`
+      `http://localhost:${env?.PORT}`,
     );
 
     // initializeCronJobs();
