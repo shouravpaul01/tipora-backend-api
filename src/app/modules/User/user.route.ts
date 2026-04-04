@@ -21,5 +21,9 @@ router.patch(
 );
 
 router.delete("/me", auth(), UserController.deleteMe);
-
+router.post(
+  "/onboarding",
+  auth(),
+  UserController.startOnboarding,
+);
 export const UserRoutes = router;

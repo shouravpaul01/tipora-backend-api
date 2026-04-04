@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,21 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 //  USER
 
-
 model User {
-  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
   firstName String
   lastName  String
   fullName  String?
-  email     String     @unique
+  email     String  @unique
   phone     String?
   photo     String?
-  bio       String?  
-  fcmToken  String?     
-
+  bio       String?
+  fcmToken  String?
 
   role   UserRole   @default(USER)
   status UserStatus @default(ACTIVE)
@@ -31,16 +27,16 @@ model User {
   isPhoneVerified Boolean @default(false)
   isDeleted       Boolean @default(false)
 
-  // ── Stripe Connect 
-  stripeAccountId       String?  // Stripe Connect account ID
-  stripeAccountVerified Boolean  @default(false)
+  // ── Stripe ────────────────────────────────────
+  stripeCustomerId      String? // sender এর জন্য — card charge করতে
+  stripeAccountId       String? // receiver এর জন্য — Connect account
+  stripeAccountVerified Boolean @default(false)
 
   // ── Relations ─────────────────────────────────
   auth           UserAuth?
   paymentMethods PaymentMethod[]
   sentTips       Tip[]           @relation("SentTips")
   receivedTips   Tip[]           @relation("ReceivedTips")
-  
   notifications  Notification[]
 
   createdAt DateTime @default(now())
@@ -56,8 +52,6 @@ model UserAuth {
   passwordChangedAt DateTime?
   lastLoginAt       DateTime?
 
- 
-
   // ── Relation ──────────────────────────────────
   userId String @unique @db.ObjectId
   user   User   @relation(fields: [userId], references: [id])
@@ -70,47 +64,31 @@ model UserAuth {
 
 //  PAYMENT METHOD  (Stripe card + Apple Pay)
 
-
 model PaymentMethod {
   id     String @id @default(auto()) @map("_id") @db.ObjectId
   userId String @db.ObjectId
   user   User   @relation(fields: [userId], references: [id])
 
-  type PaymentType // CARD | APPLE_PAY | GOOGLE_PAY
+  type                  PaymentType
+  stripePaymentMethodId String? // reference only
+  isDefault             Boolean     @default(false)
+  isActive              Boolean     @default(true)
 
-  // ── Stripe fields (CARD) ──────────────────────
-  stripePaymentMethodId String?  // pm_xxxxxxx
-  stripeCustomerId      String?  // cus_xxxxxxx
-  last4                 String?
-  brand                 String?  // visa, mastercard, amex …
-  expiryMonth           String?
-  expiryYear            String?
-  country               String?
-
-  // ── Apple Pay / Google Pay ────────────────────
-  walletToken String? // ephemeral token (log only, never persist raw)
-
-  isDefault Boolean @default(false) 
-  isActive  Boolean @default(true)
-
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   transactions Transaction[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   @@map("payment_methods")
 }
 
-
 //  TIP
-
 
 model Tip {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // ── Parties ───────────────────────────────────
   senderId   String @db.ObjectId
-  sender     User   @relation("SentTips",     fields: [senderId],   references: [id])
+  sender     User   @relation("SentTips", fields: [senderId], references: [id])
   receiverId String @db.ObjectId
   receiver   User   @relation("ReceivedTips", fields: [receiverId], references: [id])
 
@@ -119,11 +97,10 @@ model Tip {
   currency String @default("usd")
 
   // ── Content ───────────────────────────────────
-  message   String?
-
+  message String?
 
   // ── Status & Payment ──────────────────────────
-  status      TipStatus @default(PENDING)
+  status      TipStatus    @default(PENDING)
   transaction Transaction?
 
   createdAt DateTime @default(now())
@@ -132,9 +109,7 @@ model Tip {
   @@map("tips")
 }
 
-
 //  TRANSACTION  (payment record)
-
 
 model Transaction {
   id    String @id @default(auto()) @map("_id") @db.ObjectId
@@ -147,15 +122,16 @@ model Transaction {
   // ── Stripe ────────────────────────────────────
   stripePaymentIntentId String?
   stripeChargeId        String?
-  stripeTransferId      String? // sender → platform → receiver
+  stripeTransferId      String?  // platform → receiver Connect account
+  applicationFeeAmount  Float?   // actual fee Stripe collected (cents থেকে convert)
 
   // ── Apple Pay ─────────────────────────────────
   applePayTransactionId String?
 
   // ── Amounts ───────────────────────────────────
   amount      Float
-  platformFee Float  @default(0) // app cut (e.g. 3%)
-  netAmount   Float              // receiver 
+  platformFee Float  @default(0)
+  netAmount   Float
   currency    String @default("usd")
 
   // ── Status ────────────────────────────────────
@@ -169,20 +145,15 @@ model Transaction {
   @@map("transactions")
 }
 
-
-
-
-
-
 model Notification {
   id     String @id @default(auto()) @map("_id") @db.ObjectId
   userId String @db.ObjectId
   user   User   @relation(fields: [userId], references: [id])
 
-  title   String
-  body    String
-  type    NotificationType
-  data    Json?            
+  title String
+  body  String
+  type  NotificationType
+  data  Json?
 
   isRead Boolean   @default(false)
   readAt DateTime?
@@ -192,9 +163,7 @@ model Notification {
   @@map("notifications")
 }
 
-
 //  ENUMS
-
 
 enum UserRole {
   USER
@@ -227,16 +196,11 @@ enum TransactionStatus {
   REFUNDED
 }
 
-enum DevicePlatform {
-  IOS
-  ANDROID
-  WEB
-}
 
 enum NotificationType {
-  TIP_RECEIVED       
-  TIP_SENT          
-  TIP_FAILED        
+  TIP_RECEIVED
+  TIP_SENT
+  TIP_FAILED
   PAYMENT_METHOD_ADDED
   ACCOUNT_VERIFIED
   GENERAL

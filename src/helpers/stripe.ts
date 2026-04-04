@@ -1,8 +1,7 @@
 import Stripe from "stripe";
-import config from "../config";
+import { env } from "../config/env.config";
 
-const stripe = new Stripe(config.stripe_secret_key as string, {
-  apiVersion: "2024-06-20",
-});
+
+const stripe = new Stripe(env.STRIPE_SECRET_KEY as string);
 
 export default stripe;

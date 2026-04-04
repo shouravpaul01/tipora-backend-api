@@ -15,12 +15,12 @@ const setTokenCookies = (res: any, userId: string, role: string) => {
   const accessToken = jwtHelpers.generateToken(
     { id: userId, role },
     env.JWT_SECRET,
-    "15m",
+    env.EXPIRES_IN,
   );
   const refreshToken = jwtHelpers.generateToken(
     { id: userId, role },
     env.REFRESH_TOKEN_SECRET!,
-    "7d",
+    env.REFRESH_TOKEN_EXPIRES_IN,
   );
 
   res.cookie("accessToken", accessToken, {

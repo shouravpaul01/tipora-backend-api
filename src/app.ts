@@ -10,6 +10,7 @@ import { AppBodyTemplate } from "./utils/BodyTemplate";
 import morgan from "morgan";
 import { rateLimit } from "express-rate-limit";
 import ApiError from "./errors/ApiErrors";
+import { stripeWebhookHandler } from "./stripe.webhook";
 
 const app: Application = express();
 
@@ -66,7 +67,11 @@ app.get("/", (req: Request, res: Response) => {
     }),
   );
 });
-
+router.post(
+  "/stripe",
+  express.raw({ type: "application/json" }),
+  stripeWebhookHandler
+);
 // app.use("/uploads", express.static(path.join("/var/www/uploads")));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads"))); 
 // Setup API routes

@@ -34,9 +34,33 @@ const deleteMe = catchAsync(async (req: Request, res: Response) => {
     data: null,
   });
 });
+const startOnboarding = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserServices.createOnboardingLink(req.user.id);
 
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Onboarding link generated successfully.",
+    data: result,
+  });
+});
+
+// ── check onboarding status ─────────────────────────
+
+const updateOnboardingStatus = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserServices.updateOnboardingStatus(req.user.id);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Onboarding status fetched successfully.",
+    data: result,
+  });
+});
 export const UserController = {
   getMe,
   updateMe,
   deleteMe,
+  startOnboarding,
+  updateOnboardingStatus
 };
