@@ -3,9 +3,7 @@ import express from "express";
 import { AuthRoutes } from "../modules/Auth/auth.routes";
 import { UserRoutes } from "../modules/User/user.route";
 import { ImageRoutes } from "../modules/Image/Image.route";
-import { PostRoutes } from "../modules/Post/Post.route";
-
-// import { paymentRoutes } from "../modules/Payment/payment.route";
+import { NotificationRoutes } from "../modules/Notification/notification.route";
 
 const router = express.Router();
 
@@ -15,10 +13,13 @@ const moduleRoutes = [
     route: AuthRoutes,
   },
   {
-    path: "/user",
+    path: "/users",
     route: UserRoutes,
   },
-
+  {
+    path: "/notifications",
+    route: NotificationRoutes,
+  },
   {
     path: "/files",
     route: ImageRoutes,
