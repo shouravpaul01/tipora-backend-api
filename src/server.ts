@@ -8,8 +8,9 @@ const httpServer = createServer(app);
 initializeSocket(httpServer);
 // Main function to start the server
 async function main() {
+  const port = Number(env.PORT) || 5000;
   await redis.ping();
-  const server = httpServer.listen(Number(env.PORT), () => {
+  const server = httpServer.listen(port, "0.0.0.0", () => {
     console.log(
       "Server is running on port ==>",
       `http://localhost:${env?.PORT}`,
