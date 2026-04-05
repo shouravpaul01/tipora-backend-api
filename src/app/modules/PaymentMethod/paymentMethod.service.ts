@@ -79,7 +79,7 @@ const addCard = async (userId: string, stripePaymentMethodId: string) => {
       expMonth: pm.card?.exp_month,
       expYear: pm.card?.exp_year,
       displayName: `${pm.card?.brand} •••• ${pm.card?.last4}`,
-      fingerprint: pm.card?.fingerprint,
+     
     },
   });
 
@@ -96,21 +96,29 @@ const addCard = async (userId: string, stripePaymentMethodId: string) => {
   };
 };
 // ── Add Wallet (Apple Pay / Google Pay) ─────────────
-const addWallet = async (userId: string, payload: { type: "APPLE_PAY" | "GOOGLE_PAY" }) => {
+const addWallet = async (
+  userId: string,
+  payload: { type: "APPLE_PAY" | "GOOGLE_PAY" }
+) => {
+  // Check if wallet type already exists
   const duplicate = await prisma.paymentMethod.findFirst({
     where: { userId, type: payload.type as PaymentType, isActive: true },
   });
   if (duplicate) throw new ApiError(httpStatus.CONFLICT, `${payload.type} already added.`);
 
-  const activeCount = await prisma.paymentMethod.count({ where: { userId, isActive: true } });
-  const isDefault = activeCount === 0;
+  // Unset previous default wallets
+  await prisma.paymentMethod.updateMany({
+    where: { userId, isDefault: true },
+    data: { isDefault: false },
+  });
 
+  // Create new wallet as default
   const paymentMethod = await prisma.paymentMethod.create({
     data: {
       userId,
       type: payload.type as PaymentType,
       walletType: payload.type.toLowerCase(),
-      isDefault,
+      isDefault: true,
       displayName: payload.type === "APPLE_PAY" ? "Apple Pay" : "Google Pay",
     },
   });

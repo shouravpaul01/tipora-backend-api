@@ -17,14 +17,14 @@ router.post(
 );
 
 router.post(
-  "/card",
+  "/add-card",
   auth(),
   validateRequest(PaymentMethodValidation.addCard),
   PaymentMethodController.addCard,
 );
 
 router.post(
-  "/wallet",
+  "/add-wallet",
   auth(),
   validateRequest(PaymentMethodValidation.addWallet),
   PaymentMethodController.addWallet,

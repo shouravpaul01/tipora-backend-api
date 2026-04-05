@@ -6,21 +6,24 @@ import prisma from "../../../shared/prisma";
 import ApiError from "../../../errors/ApiErrors";
 import { env } from "../../../config/env.config";
 import { PaymentType, TipStatus, TransactionStatus } from "@prisma/client";
-import { sendNotification } from "../notification/notification.helper";
+import { NotificationServices } from "../Notification/notification.service";
+import QueryBuilder from "../../../helpers/queryBuilder";
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
 const PLATFORM_FEE_PERCENT = 3;
 
-// ── calculate platform fee ────────────────────────────
+// ── Calculate platform fee and net amount ─────────────
 
 const calculateFees = (amount: number) => {
-  const platformFee = parseFloat(((amount * PLATFORM_FEE_PERCENT) / 100).toFixed(2));
+  const platformFee = parseFloat(
+    ((amount * PLATFORM_FEE_PERCENT) / 100).toFixed(2),
+  );
   const netAmount = parseFloat((amount - platformFee).toFixed(2));
   return { platformFee, netAmount };
 };
 
-// ── send tip ──────────────────────────────────────────
+// ── Send tip ──────────────────────────────────────────
 
 const sendTip = async (
   senderId: string,
@@ -33,31 +36,54 @@ const sendTip = async (
     walletToken?: string;
   },
 ) => {
-  const { receiverId, amount, currency, message, paymentMethodId, walletToken } = payload;
+  const {
+    receiverId,
+    amount,
+    currency,
+    message,
+    paymentMethodId,
+    walletToken,
+  } = payload;
 
   // Cannot tip yourself
   if (senderId === receiverId) {
     throw new ApiError(httpStatus.BAD_REQUEST, "You cannot tip yourself.");
   }
 
-  // Validate receiver exists and is active
+  // Validate receiver — must exist, active, and have verified Connect account
   const receiver = await prisma.user.findUnique({
     where: { id: receiverId, isDeleted: false, status: "ACTIVE" },
-    select: { id: true, firstName: true, lastName: true, fullName: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      stripeAccountId: true,
+      stripeAccountVerified: true,
+    },
   });
   if (!receiver) {
     throw new ApiError(httpStatus.NOT_FOUND, "Receiver not found.");
+  }
+  if (!receiver.stripeAccountId || !receiver.stripeAccountVerified) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Receiver has not set up their payout account yet.",
+    );
   }
 
   // Validate sender's payment method
   const paymentMethod = await prisma.paymentMethod.findUnique({
     where: { id: paymentMethodId },
   });
-  if (!paymentMethod || paymentMethod.userId !== senderId || !paymentMethod.isActive) {
+  if (
+    !paymentMethod ||
+    paymentMethod.userId !== senderId ||
+    !paymentMethod.isActive
+  ) {
     throw new ApiError(httpStatus.BAD_REQUEST, "Invalid payment method.");
   }
 
-  // Get sender info for Stripe
+  // Get sender info
   const sender = await prisma.user.findUnique({
     where: { id: senderId },
     select: { stripeCustomerId: true, firstName: true, lastName: true },
@@ -68,8 +94,9 @@ const sendTip = async (
 
   const { platformFee, netAmount } = calculateFees(amount);
   const amountInCents = Math.round(amount * 100);
+  const platformFeeInCents = Math.round(platformFee * 100);
 
-  // Create tip record first (PENDING)
+  // Create tip record — PENDING before payment attempt
   const tip = await prisma.tip.create({
     data: {
       senderId,
@@ -83,13 +110,17 @@ const sendTip = async (
 
   let stripePaymentIntentId: string | undefined;
   let stripeChargeId: string | undefined;
+  let stripeTransferId: string | undefined;
   let applePayTransactionId: string | undefined;
 
   try {
     if (paymentMethod.type === PaymentType.CARD) {
-      // ── Card payment via Stripe ────────────────────
+      // ── Card payment with Stripe Connect ──────────
       if (!paymentMethod.stripePaymentMethodId || !sender.stripeCustomerId) {
-        throw new ApiError(httpStatus.BAD_REQUEST, "Card payment method not properly configured.");
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          "Card payment method not properly configured.",
+        );
       }
 
       const paymentIntent = await stripe.paymentIntents.create({
@@ -98,7 +129,16 @@ const sendTip = async (
         customer: sender.stripeCustomerId,
         payment_method: paymentMethod.stripePaymentMethodId,
         confirm: true,
-        automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+        automatic_payment_methods: {
+          enabled: true,
+          allow_redirects: "never",
+        },
+        // 3% platform fee — Stripe automatically splits
+        application_fee_amount: platformFeeInCents,
+        // Transfer directly to receiver's Connect account
+        transfer_data: {
+          destination: receiver.stripeAccountId,
+        },
         description: `Tip from ${sender.firstName} to ${receiver.firstName}`,
         metadata: {
           tipId: tip.id,
@@ -110,29 +150,36 @@ const sendTip = async (
       });
 
       stripePaymentIntentId = paymentIntent.id;
-      stripeChargeId = typeof paymentIntent.latest_charge === "string"
-        ? paymentIntent.latest_charge
-        : paymentIntent.latest_charge?.id;
+      stripeChargeId =
+        typeof paymentIntent.latest_charge === "string"
+          ? paymentIntent.latest_charge
+          : paymentIntent.latest_charge?.id;
+      stripeTransferId = paymentIntent.transfer_data?.destination as string;
 
       if (paymentIntent.status !== "succeeded") {
-        throw new ApiError(httpStatus.BAD_REQUEST, "Payment failed. Please try again.");
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          "Payment failed. Please try again.",
+        );
       }
     } else {
-      // ── Apple Pay / Google Pay ─────────────────────
+      // ── Apple Pay / Google Pay with Stripe Connect ─
       if (!walletToken) {
-        throw new ApiError(httpStatus.BAD_REQUEST, "Wallet token is required for wallet payments.");
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          "Wallet token is required for wallet payments.",
+        );
       }
 
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency,
-        payment_method_data: {
-          type: "card",
-          card: { token: walletToken },
-        },
+        payment_method: walletToken, // token from Apple/Google Pay
         confirm: true,
-        automatic_payment_methods: { enabled: true, allow_redirects: "never" },
-        description: `Tip from ${sender.firstName} to ${receiver.firstName}`,
+        automatic_payment_methods: { enabled: true },
+        application_fee_amount: platformFeeInCents,
+        transfer_data: { destination: receiver.stripeAccountId },
+        description: `Tip from ${sender.firstName} ${sender.lastName} to ${receiver.firstName}`,
         metadata: {
           tipId: tip.id,
           senderId,
@@ -145,12 +192,17 @@ const sendTip = async (
 
       stripePaymentIntentId = paymentIntent.id;
       applePayTransactionId = paymentIntent.id;
-      stripeChargeId = typeof paymentIntent.latest_charge === "string"
-        ? paymentIntent.latest_charge
-        : paymentIntent.latest_charge?.id;
+      stripeChargeId =
+        typeof paymentIntent.latest_charge === "string"
+          ? paymentIntent.latest_charge
+          : paymentIntent.latest_charge?.id;
+      stripeTransferId = paymentIntent.transfer_data?.destination as string;
 
       if (paymentIntent.status !== "succeeded") {
-        throw new ApiError(httpStatus.BAD_REQUEST, "Payment failed. Please try again.");
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          "Payment failed. Please try again.",
+        );
       }
     }
 
@@ -166,7 +218,9 @@ const sendTip = async (
           paymentMethodId,
           stripePaymentIntentId,
           stripeChargeId,
+          stripeTransferId,
           applePayTransactionId,
+          applicationFeeAmount: platformFee,
           amount,
           platformFee,
           netAmount,
@@ -176,35 +230,29 @@ const sendTip = async (
       }),
     ]);
 
-    // ── Send notifications ─────────────────────────
-    const senderName = `${sender.firstName}`;
+    // ── Send notifications to both parties ────────
     const formattedAmount = `$${amount.toFixed(2)}`;
 
     await Promise.allSettled([
-      // Notify receiver
-      sendNotification({
+      NotificationServices.SendNotification({
         userId: receiverId,
         title: "You received a tip! 🎉",
-        body: `${senderName} sent you ${formattedAmount}${message ? ` — "${message}"` : ""}`,
+        body: `${sender.firstName} ${sender.lastName} sent you ${formattedAmount}${message ? ` — "${message}"` : ""}`,
         type: "TIP_RECEIVED",
         data: { tipId: tip.id, senderId, amount: amount.toString() },
       }),
-      // Notify sender
-      sendNotification({
+      NotificationServices.SendNotification({
         userId: senderId,
         title: "Tip sent successfully!",
-        body: `Your ${formattedAmount} tip to ${receiver.firstName} was sent.`,
+        body: `Your ${formattedAmount} tip to ${receiver.firstName} ${receiver.lastName} was sent.`,
         type: "TIP_SENT",
         data: { tipId: tip.id, receiverId, amount: amount.toString() },
       }),
     ]);
 
-    return {
-      tip: updatedTip,
-      transaction,
-    };
+    return { tip: updatedTip, transaction };
   } catch (error: any) {
-    // ── Payment failed — update tip status ─────────
+    // ── Payment failed — update records ───────────
     await prisma.$transaction([
       prisma.tip.update({
         where: { id: tip.id },
@@ -226,7 +274,7 @@ const sendTip = async (
     ]);
 
     // Notify sender of failure
-    await sendNotification({
+    await NotificationServices.SendNotification({
       userId: senderId,
       title: "Tip failed",
       body: `Your tip of $${amount.toFixed(2)} could not be processed.`,
@@ -241,7 +289,7 @@ const sendTip = async (
   }
 };
 
-// ── get my sent tips ──────────────────────────────────
+// ── Get my sent tips (paginated) ──────────────────────
 
 const getMySentTips = async (
   senderId: string,

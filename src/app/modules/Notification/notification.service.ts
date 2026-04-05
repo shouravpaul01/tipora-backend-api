@@ -10,7 +10,7 @@ import { emitUnreadCount } from "../../../utils/emitUnreadCount";
 import admin from "firebase-admin";
 import QueryBuilder from "../../../helpers/queryBuilder";
 
-export const sendNotification = async (payload: SendNotificationPayload) => {
+const SendNotification = async (payload: SendNotificationPayload) => {
   const { userId, title, body, type, data } = payload;
 
   const notification = await prisma.notification.create({
@@ -155,6 +155,7 @@ const deleteAllNotifications = async (userId: string) => {
 };
 
 export const NotificationServices = {
+  SendNotification,
   getMyNotifications,
   getUnreadCount,
   markAsRead,

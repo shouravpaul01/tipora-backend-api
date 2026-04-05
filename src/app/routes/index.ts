@@ -2,8 +2,10 @@ import express from "express";
 
 import { AuthRoutes } from "../modules/Auth/auth.routes";
 import { UserRoutes } from "../modules/User/user.route";
-import { ImageRoutes } from "../modules/Image/Image.route";
+
 import { NotificationRoutes } from "../modules/Notification/notification.route";
+import { PaymentMethodRoutes } from "../modules/PaymentMethod/paymentMethod.route";
+import { TipRoutes } from "../modules/Tips/tips.route";
 
 const router = express.Router();
 
@@ -21,9 +23,14 @@ const moduleRoutes = [
     route: NotificationRoutes,
   },
   {
-    path: "/files",
-    route: ImageRoutes,
+    path: "/payment-method",
+    route: PaymentMethodRoutes,
   },
+  {
+    path: "/tips",
+    route: TipRoutes,
+  },
+
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

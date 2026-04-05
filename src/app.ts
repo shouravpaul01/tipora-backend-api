@@ -10,7 +10,8 @@ import { AppBodyTemplate } from "./utils/BodyTemplate";
 import morgan from "morgan";
 import { rateLimit } from "express-rate-limit";
 import ApiError from "./errors/ApiErrors";
-import { stripeWebhookHandler } from "./stripe.webhook";
+import { stripeWebhookHandler } from "./webhook/stripe.webhook";
+
 
 const app: Application = express();
 
@@ -42,12 +43,13 @@ const limiterOptions = {
 };
 // Middleware setup
 app.use(cors(corsOptions));
-app.use(cookieParser());
-router.post(
-  "/stripe",
+
+app.post(
+  "/webhook",
   express.raw({ type: "application/json" }),
   stripeWebhookHandler
 );
+app.use(cookieParser());
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));

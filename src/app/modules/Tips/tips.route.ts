@@ -1,33 +1,25 @@
-import express from 'express'
-import { TipsControllers } from './tips.controller'
+// tip.routes.ts
 
-const router = express.Router()
+import { Router } from "express";
+import auth from "../../middlewares/auth";
+import validateRequest from "../../middlewares/validateRequest";
+import { TipController } from "./tips.controller";
+import { TipValidation } from "./tips.validation";
+
+
+const router = Router();
 
 router.post(
-  '/',
-  // validateRequest(TipsValidation.createTipsValidationSchema),
-  TipsControllers.createTips,
-)
+  "/send",
+  auth(),
+  validateRequest(TipValidation.sendTip),
+  TipController.sendTip,
+);
 
 router.get(
-  '/',
-  TipsControllers.getAllTips,
-)
+  "/my-tips",
+  auth(),
+  TipController.getMySentTips,
+);
 
-router.get(
-  '/:id',
-  TipsControllers.getSingleTips,
-)
-
-router.patch(
-  '/:id',
- //  validateRequest(TipsValidation.createTipsValidationSchema),
-  TipsControllers.updateTips,
-)
-
-router.delete(
-  '/:id',
-  TipsControllers.deleteTips,
-)
-
-export const TipsRoutes = router
+export const TipRoutes = router;

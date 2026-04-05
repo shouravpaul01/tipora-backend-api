@@ -45,7 +45,7 @@ export const AppBodyTemplate = (config: TemplateConfig = {}) => {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Coreverapro API - ${status}</title>
+        <title>Tipster- ${status}</title>
         <style>
           body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -136,7 +136,7 @@ export const AppBodyTemplate = (config: TemplateConfig = {}) => {
       </head>
       <body>
         <div class="container">
-          <div class="logo">🩺 Coreverapro</div>
+          <div class="logo">🩺 Tipster</div>
           <h1>${message}</h1>
           
           <div class="status">

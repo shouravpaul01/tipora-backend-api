@@ -213,6 +213,7 @@ const createOnboardingLink = async (userId: string) => {
 // ── check onboarding status ─────────────────────────
 
 const updateOnboardingStatus =  async (account: Stripe.Account) => {
+  console.log("account",account)
   const isVerified =
     account.details_submitted &&
     account.charges_enabled &&
