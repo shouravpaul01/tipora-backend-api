@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//  USER
+// USER MODEL
 
 model User {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
@@ -27,10 +27,10 @@ model User {
   isPhoneVerified Boolean @default(false)
   isDeleted       Boolean @default(false)
 
-  // ── Stripe ────────────────────────────────────
-  stripeCustomerId      String? // sender এর জন্য — card charge করতে
-  stripeAccountId       String? // receiver এর জন্য — Connect account
-  stripeAccountVerified Boolean @default(false)
+  // ── Stripe Integration ─────────────────────────
+  stripeCustomerId      String? // Used for charging the user (sender)
+  stripeAccountId       String? // Stripe Connect account (receiver)
+  stripeAccountVerified Boolean @default(false) // Indicates if account is fully verified
 
   // ── Relations ─────────────────────────────────
   auth           UserAuth?
@@ -62,44 +62,63 @@ model UserAuth {
   @@map("user_auths")
 }
 
-//  PAYMENT METHOD  (Stripe card + Apple Pay)
+// PAYMENT METHOD (Stored Stripe cards / wallets)
 
 model PaymentMethod {
   id     String @id @default(auto()) @map("_id") @db.ObjectId
   userId String @db.ObjectId
   user   User   @relation(fields: [userId], references: [id])
 
-  type                  PaymentType
-  stripePaymentMethodId String? // reference only
-  isDefault             Boolean     @default(false)
-  isActive              Boolean     @default(true)
+  // ── Type ──────────────────────────────────────
+  type PaymentType // CARD | APPLE_PAY | GOOGLE_PAY
 
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  // ── Stripe Reference (Source of truth) ────────
+  stripePaymentMethodId String? 
+
+  // ── Card Metadata (Safe, for UI optimization) ─
+  brand    String? // visa, mastercard, amex
+  last4    String? // last 4 digits
+  expMonth Int?
+  expYear  Int?
+
+  // ── Wallet Info ──────────────────────────────
+  walletType String? // apple_pay | google_pay
+
+  displayName String? // e.g. "Visa •••• 4242"
+
+
+  // ── Status ───────────────────────────────────
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   transactions Transaction[]
 
+  @@index([userId])
+  @@index([stripePaymentMethodId])
   @@map("payment_methods")
 }
-
-//  TIP
+// TIP MODEL
 
 model Tip {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  // ── Parties ───────────────────────────────────
+  // ── Sender & Receiver ─────────────────────────
   senderId   String @db.ObjectId
   sender     User   @relation("SentTips", fields: [senderId], references: [id])
   receiverId String @db.ObjectId
   receiver   User   @relation("ReceivedTips", fields: [receiverId], references: [id])
 
-  // ── Amount ────────────────────────────────────
+  // ── Amount Details ────────────────────────────
   amount   Float
   currency String @default("usd")
 
-  // ── Content ───────────────────────────────────
+  // ── Optional Message ──────────────────────────
   message String?
 
-  // ── Status & Payment ──────────────────────────
+  // ── Status & Payment Reference ────────────────
   status      TipStatus    @default(PENDING)
   transaction Transaction?
 
@@ -109,7 +128,7 @@ model Tip {
   @@map("tips")
 }
 
-//  TRANSACTION  (payment record)
+// TRANSACTION MODEL (Payment record)
 
 model Transaction {
   id    String @id @default(auto()) @map("_id") @db.ObjectId
@@ -119,22 +138,22 @@ model Transaction {
   paymentMethodId String?        @db.ObjectId
   paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
 
-  // ── Stripe ────────────────────────────────────
+  // ── Stripe References ─────────────────────────
   stripePaymentIntentId String?
   stripeChargeId        String?
-  stripeTransferId      String?  // platform → receiver Connect account
-  applicationFeeAmount  Float?   // actual fee Stripe collected (cents থেকে convert)
+  stripeTransferId      String? // Transfer to connected account
+  applicationFeeAmount  Float?  // Platform fee collected by Stripe
 
-  // ── Apple Pay ─────────────────────────────────
+  // ── Apple Pay Reference ───────────────────────
   applePayTransactionId String?
 
-  // ── Amounts ───────────────────────────────────
+  // ── Financial Breakdown ───────────────────────
   amount      Float
   platformFee Float  @default(0)
   netAmount   Float
   currency    String @default("usd")
 
-  // ── Status ────────────────────────────────────
+  // ── Status Tracking ───────────────────────────
   status        TransactionStatus @default(PENDING)
   failureReason String?
   refundedAt    DateTime?
@@ -144,6 +163,8 @@ model Transaction {
 
   @@map("transactions")
 }
+
+// NOTIFICATION MODEL
 
 model Notification {
   id     String @id @default(auto()) @map("_id") @db.ObjectId
@@ -163,7 +184,7 @@ model Notification {
   @@map("notifications")
 }
 
-//  ENUMS
+// ENUMS
 
 enum UserRole {
   USER
@@ -195,7 +216,6 @@ enum TransactionStatus {
   FAILED
   REFUNDED
 }
-
 
 enum NotificationType {
   TIP_RECEIVED

@@ -43,6 +43,11 @@ const limiterOptions = {
 // Middleware setup
 app.use(cors(corsOptions));
 app.use(cookieParser());
+router.post(
+  "/stripe",
+  express.raw({ type: "application/json" }),
+  stripeWebhookHandler
+);
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -67,11 +72,7 @@ app.get("/", (req: Request, res: Response) => {
     }),
   );
 });
-router.post(
-  "/stripe",
-  express.raw({ type: "application/json" }),
-  stripeWebhookHandler
-);
+
 // app.use("/uploads", express.static(path.join("/var/www/uploads")));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads"))); 
 // Setup API routes
