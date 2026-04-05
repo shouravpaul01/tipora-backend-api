@@ -15,12 +15,12 @@ const setTokenCookies = (res: any, userId: string, role: string) => {
   const accessToken = jwtHelpers.generateToken(
     { id: userId, role },
     env.JWT_SECRET,
-    env.EXPIRES_IN,
+    env.EXPIRES_IN as any,
   );
   const refreshToken = jwtHelpers.generateToken(
     { id: userId, role },
     env.REFRESH_TOKEN_SECRET!,
-    env.REFRESH_TOKEN_EXPIRES_IN,
+    env.REFRESH_TOKEN_EXPIRES_IN as any,
   );
 
   res.cookie("accessToken", accessToken, {
@@ -219,7 +219,7 @@ const verifyResetOtp = async (payload: { email: string; otp: string }) => {
   const resetToken = jwtHelpers.generateToken(
     { email: payload.email, purpose: "password_reset" },
     env.RESET_PASS_TOKEN!,
-    env.RESET_PASS_TOKEN_EXPIRES_IN,
+    env.RESET_PASS_TOKEN_EXPIRES_IN as any,
   );
 
   // Store token hash in Redis to enforce single-use
