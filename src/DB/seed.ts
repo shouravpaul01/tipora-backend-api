@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
-import prisma from "../src/shared/prisma";
+import prisma from "../shared/prisma";
+
 
 export const initiateSuperAdmin = async () => {
   const existingAdmin = await prisma.user.findFirst({

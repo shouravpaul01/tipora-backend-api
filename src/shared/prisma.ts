@@ -1,7 +1,8 @@
 
 
 import { PrismaClient } from "@prisma/client";
-import { initiateSuperAdmin } from "../../prisma/seed";
+import { initiateSuperAdmin } from "../DB/seed";
+
 
 
 // const prisma = new PrismaClient();
