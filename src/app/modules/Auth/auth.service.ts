@@ -63,14 +63,15 @@ const register = async (payload: {
   const { password, ...userData } = payload;
 
   const user = await prisma.user.create({
-    data: {
-      ...userData,
-      auth: {
-        create: { password: hashedPassword },
-      },
+  data: {
+    ...userData,
+    fullName: `${payload.firstName} ${payload.lastName}`, 
+    auth: {
+      create: { password: hashedPassword },
     },
-    select: { id: true, fullName: true, email: true, role: true },
-  });
+  },
+  select: { id: true, fullName: true, email: true, role: true },
+});
 
   // store OTP in Redis — key: otp:register:<email>
   const otp = generateOtp();
