@@ -15,7 +15,7 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
   });
 });
 const getSingleUserDetails = catchAsync(async (req: Request, res: Response) => {
-  const result = await UserServices.getMe(req.params.id as string);
+  const result = await UserServices.getSingleUserDetails(req.params.id as string);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

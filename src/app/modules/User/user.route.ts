@@ -9,7 +9,7 @@ import validateRequest from "../../middlewares/validateRequest";
 import { fileUploader } from "../../middlewares/fileUploader";
 
 const router = Router();
-
+router.get("/details/:id",  UserController.getSingleUserDetails);
 router.get("/me", auth(), UserController.getMe);
 
 router.patch(
@@ -26,5 +26,5 @@ router.post(
   auth(),
   UserController.startOnboarding,
 );
-router.get("/:id",  UserController.getSingleUserDetails);
+
 export const UserRoutes = router;
