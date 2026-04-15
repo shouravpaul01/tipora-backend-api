@@ -33,13 +33,32 @@ const getMe = async (userId: string) => {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
   }
 
-  // ── Tip counts (parallel query) ────────────────────────────────
-  const [totalSentTips, totalReceivedTips] = await Promise.all([
+  // ── Current month date range ───────────────────────────────────
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  // ── Tip counts + current month received amount (parallel) ──────
+  const [totalSentTips, totalReceivedTips, currentMonthReceived] = await Promise.all([
     prisma.tip.count({
       where: { senderId: userId },
     }),
     prisma.tip.count({
       where: { receiverId: userId },
+    }),
+    // Sum of completed tips received in current month
+    prisma.tip.aggregate({
+      where: {
+        receiverId: userId,
+        status: "COMPLETED",
+        createdAt: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
     }),
   ]);
 
@@ -57,15 +76,13 @@ const getMe = async (userId: string) => {
           object: "card",
           limit: 10,
         }),
-        // ── Available balance of the connected account ──────────
         stripe.balance.retrieve({
           stripeAccount: user.stripeAccountId,
         }),
       ]);
 
-      // ── Parse available balance per currency ────────────────────
       const availableBalance = balance.available.map((b) => ({
-        amount: b.amount / 100,   // convert cents → dollars
+        amount: b.amount / 100,
         currency: b.currency,
       }));
 
@@ -82,7 +99,6 @@ const getMe = async (userId: string) => {
         businessType: account.business_type,
         country: account.country,
         email: account.email,
-        // ── Balance ───────────────────────────────────────────────
         balance: {
           available: availableBalance,
           pending: pendingBalance,
@@ -112,15 +128,14 @@ const getMe = async (userId: string) => {
 
   return {
     ...user,
-    // ── Tip stats ─────────────────────────────────────────────────
     tipStats: {
       totalSent: totalSentTips,
       totalReceived: totalReceivedTips,
+      currentMonthReceivedAmount: currentMonthReceived._sum.amount ?? 0,
     },
     stripeAccount: stripeAccountDetails,
   };
 };
-
 
 // ── update my profile ─────────────────────────────────
 
