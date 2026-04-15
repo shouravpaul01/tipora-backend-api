@@ -38,27 +38,44 @@ const getMe = async (userId: string) => {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  // ── Tip counts + current month received amount (parallel) ──────
-  const [totalSentTips, totalReceivedTips, currentMonthReceived] = await Promise.all([
-    prisma.tip.count({
-      where: { senderId: userId },
+  // ── All tip stats in parallel ──────────────────────────────────
+  const [
+    totalSentStats,
+    totalReceivedStats,
+    currentMonthSentStats,
+    currentMonthReceivedStats,
+  ] = await Promise.all([
+    // Overall sent — count + amount
+    prisma.tip.aggregate({
+      where: { senderId: userId, status: "COMPLETED" },
+      _count: { id: true },
+      _sum: { amount: true },
     }),
-    prisma.tip.count({
-      where: { receiverId: userId },
+    // Overall received — count + amount
+    prisma.tip.aggregate({
+      where: { receiverId: userId, status: "COMPLETED" },
+      _count: { id: true },
+      _sum: { amount: true },
     }),
-    // Sum of completed tips received in current month
+    // Current month sent — count + amount
+    prisma.tip.aggregate({
+      where: {
+        senderId: userId,
+        status: "COMPLETED",
+        createdAt: { gte: startOfMonth, lte: endOfMonth },
+      },
+      _count: { id: true },
+      _sum: { amount: true },
+    }),
+    // Current month received — count + amount
     prisma.tip.aggregate({
       where: {
         receiverId: userId,
         status: "COMPLETED",
-        createdAt: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
+        createdAt: { gte: startOfMonth, lte: endOfMonth },
       },
-      _sum: {
-        amount: true,
-      },
+      _count: { id: true },
+      _sum: { amount: true },
     }),
   ]);
 
@@ -129,9 +146,26 @@ const getMe = async (userId: string) => {
   return {
     ...user,
     tipStats: {
-      totalSent: totalSentTips,
-      totalReceived: totalReceivedTips,
-      currentMonthReceivedAmount: currentMonthReceived._sum.amount ?? 0,
+      sent: {
+        total: {
+          count: totalSentStats._count.id,
+          amount: totalSentStats._sum.amount ?? 0,
+        },
+        currentMonth: {
+          count: currentMonthSentStats._count.id,
+          amount: currentMonthSentStats._sum.amount ?? 0,
+        },
+      },
+      received: {
+        total: {
+          count: totalReceivedStats._count.id,
+          amount: totalReceivedStats._sum.amount ?? 0,
+        },
+        currentMonth: {
+          count: currentMonthReceivedStats._count.id,
+          amount: currentMonthReceivedStats._sum.amount ?? 0,
+        },
+      },
     },
     stripeAccount: stripeAccountDetails,
   };
