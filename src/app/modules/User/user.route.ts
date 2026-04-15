@@ -26,4 +26,5 @@ router.post(
   auth(),
   UserController.startOnboarding,
 );
+router.get("/:id",  UserController.getSingleUserDetails);
 export const UserRoutes = router;

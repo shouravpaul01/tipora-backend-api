@@ -14,7 +14,15 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
-
+const getSingleUserDetails = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserServices.getMe(req.params.id as string);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Single user fetched successfully.",
+    data: result,
+  });
+});
 const updateMe = catchAsync(async (req: Request, res: Response) => {
   const result = await UserServices.updateMe(req.user.id,req.file as Express.Multer.File, req.body);
   sendResponse(res, {
@@ -59,6 +67,7 @@ const updateOnboardingStatus = catchAsync(async (req: Request, res: Response) =>
 });
 export const UserController = {
   getMe,
+  getSingleUserDetails,
   updateMe,
   deleteMe,
   startOnboarding,

@@ -36,7 +36,15 @@ const getMe = async (userId: string) => {
   // ── Current month date range ───────────────────────────────────
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const endOfMonth = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    0,
+    23,
+    59,
+    59,
+    999,
+  );
 
   // ── All tip stats in parallel ──────────────────────────────────
   const [
@@ -170,7 +178,33 @@ const getMe = async (userId: string) => {
     stripeAccount: stripeAccountDetails,
   };
 };
+const getSingleUserDetails = async (userId: string) => {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, isDeleted: false },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      photo: true,
+      bio: true,
+      role: true,
+      status: true,
+      stripeAccountId: true,
+      stripeAccountVerified: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
 
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
+  }
+
+  return user;
+};
 // ── update my profile ─────────────────────────────────
 
 const updateMe = async (
@@ -238,7 +272,7 @@ const deleteMe = async (userId: string) => {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
   }
 
-  // soft delete 
+  // soft delete
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -296,8 +330,8 @@ const createOnboardingLink = async (userId: string) => {
 
 // ── check onboarding status ─────────────────────────
 
-const updateOnboardingStatus =  async (account: Stripe.Account) => {
-  console.log("account",account)
+const updateOnboardingStatus = async (account: Stripe.Account) => {
+  console.log("account", account);
   const isVerified =
     account.details_submitted &&
     account.charges_enabled &&
@@ -311,19 +345,19 @@ const updateOnboardingStatus =  async (account: Stripe.Account) => {
       stripeAccountVerified: isVerified,
     },
   });
-   return {
+  return {
     isVerified,
     detailsSubmitted: account.details_submitted,
     chargesEnabled: account.charges_enabled,
     payoutsEnabled: account.payouts_enabled,
   };
 };
- 
 
 export const UserServices = {
   getMe,
+  getSingleUserDetails,
   updateMe,
   deleteMe,
   createOnboardingLink,
-  updateOnboardingStatus
+  updateOnboardingStatus,
 };
