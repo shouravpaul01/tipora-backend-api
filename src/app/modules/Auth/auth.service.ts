@@ -252,7 +252,7 @@ const resetPassword = async (payload: {
       "Invalid or expired reset token.",
     );
   }
-console.log("decoded",decoded)
+
   if (decoded.purpose !== "password_reset") {
     throw new ApiPathError(
       httpStatus.BAD_REQUEST,

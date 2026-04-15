@@ -33,22 +33,46 @@ const getMe = async (userId: string) => {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
   }
 
+  // ── Tip counts (parallel query) ────────────────────────────────
+  const [totalSentTips, totalReceivedTips] = await Promise.all([
+    prisma.tip.count({
+      where: { senderId: userId },
+    }),
+    prisma.tip.count({
+      where: { receiverId: userId },
+    }),
+  ]);
+
   let stripeAccountDetails: any = null;
 
   if (user.stripeAccountId) {
     try {
-      const account = await stripe.accounts.retrieve(user.stripeAccountId);
+      const [account, externalAccounts, cards, balance] = await Promise.all([
+        stripe.accounts.retrieve(user.stripeAccountId),
+        stripe.accounts.listExternalAccounts(user.stripeAccountId, {
+          object: "bank_account",
+          limit: 10,
+        }),
+        stripe.accounts.listExternalAccounts(user.stripeAccountId, {
+          object: "card",
+          limit: 10,
+        }),
+        // ── Available balance of the connected account ──────────
+        stripe.balance.retrieve({
+          stripeAccount: user.stripeAccountId,
+        }),
+      ]);
 
-      // Fetch external accounts (bank + cards)
-      const externalAccounts = await stripe.accounts.listExternalAccounts(
-        user.stripeAccountId,
-        { object: "bank_account", limit: 10 },
-      );
+      // ── Parse available balance per currency ────────────────────
+      const availableBalance = balance.available.map((b) => ({
+        amount: b.amount / 100,   // convert cents → dollars
+        currency: b.currency,
+      }));
 
-      const cards = await stripe.accounts.listExternalAccounts(
-        user.stripeAccountId,
-        { object: "card", limit: 10 },
-      );
+      const pendingBalance = balance.pending.map((b) => ({
+        amount: b.amount / 100,
+        currency: b.currency,
+      }));
 
       stripeAccountDetails = {
         id: account.id,
@@ -58,7 +82,12 @@ const getMe = async (userId: string) => {
         businessType: account.business_type,
         country: account.country,
         email: account.email,
-        bankAccounts: externalAccounts.data.map((b:any) => ({
+        // ── Balance ───────────────────────────────────────────────
+        balance: {
+          available: availableBalance,
+          pending: pendingBalance,
+        },
+        bankAccounts: externalAccounts.data.map((b: any) => ({
           id: b.id,
           bankName: b.bank_name,
           last4: b.last4,
@@ -66,7 +95,7 @@ const getMe = async (userId: string) => {
           country: b.country,
           defaultForCurrency: b.default_for_currency,
         })),
-        cards: cards.data.map((c:any) => ({
+        cards: cards.data.map((c: any) => ({
           id: c.id,
           brand: c.brand,
           last4: c.last4,
@@ -83,6 +112,11 @@ const getMe = async (userId: string) => {
 
   return {
     ...user,
+    // ── Tip stats ─────────────────────────────────────────────────
+    tipStats: {
+      totalSent: totalSentTips,
+      totalReceived: totalReceivedTips,
+    },
     stripeAccount: stripeAccountDetails,
   };
 };
