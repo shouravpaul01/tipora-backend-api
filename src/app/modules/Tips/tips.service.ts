@@ -8,22 +8,14 @@ import { env } from "../../../config/env.config";
 import { PaymentType, TipStatus, TransactionStatus } from "@prisma/client";
 import { NotificationServices } from "../Notification/notification.service";
 import QueryBuilder from "../../../helpers/queryBuilder";
-import { getStripeErrorMessage } from "./tips.utils";
+import { calculateFees, getStripeErrorMessage } from "./tips.utils";
 import { CARD_DISABLE_CODES } from "./tips.constant";
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
-const PLATFORM_FEE_PERCENT = 3;
 
-// ── Calculate platform fee and net amount ─────────────
 
-const calculateFees = (amount: number) => {
-  const platformFee = parseFloat(
-    ((amount * PLATFORM_FEE_PERCENT) / 100).toFixed(2),
-  );
-  const netAmount = parseFloat((amount - platformFee).toFixed(2));
-  return { platformFee, netAmount };
-};
+
 
 // ── Send tip ──────────────────────────────────────────
 

@@ -30,6 +30,18 @@ const getMe = async (userId: string) => {
         select:{
           passwordChangedAt:true
         }
+      },
+      paymentMethods:{
+        where:{
+          isDefault:true
+        },
+        select:{
+          id:true,
+          type:true,
+          brand:true,
+          walletType:true,
+          displayName:true
+        }
       }
     },
   });

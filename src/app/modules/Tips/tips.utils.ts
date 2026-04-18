@@ -1,6 +1,6 @@
 import { STRIPE_ERROR_MESSAGES } from "./tips.constant";
-
-export const getStripeErrorMessage = (error: any): string => {
+const PLATFORM_FEE_PERCENT = 3;
+ export const getStripeErrorMessage = (error: any): string => {
   if (error?.decline_code && STRIPE_ERROR_MESSAGES[error.decline_code]) {
     return STRIPE_ERROR_MESSAGES[error.decline_code];
   }
@@ -8,4 +8,13 @@ export const getStripeErrorMessage = (error: any): string => {
     return STRIPE_ERROR_MESSAGES[error.code];
   }
   return error?.message || "Payment failed. Please try again.";
+};
+// ── Calculate platform fee and net amount ─────────────
+
+export const calculateFees = (amount: number) => {
+  const platformFee = parseFloat(
+    ((amount * PLATFORM_FEE_PERCENT) / 100).toFixed(2),
+  );
+  const netAmount = parseFloat((amount - platformFee).toFixed(2));
+  return { platformFee, netAmount };
 };
