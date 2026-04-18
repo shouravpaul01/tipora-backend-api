@@ -109,7 +109,7 @@ model Tip {
   senderId   String @db.ObjectId
   sender     User   @relation("SentTips", fields: [senderId], references: [id])
   receiverId String @db.ObjectId
-  receiver   User   @relation("ReceivedTips", fields: [receiverId], references: [id])
+  sender   User   @relation("ReceivedTips", fields: [receiverId], references: [id])
 
   // ── Amount Details ────────────────────────────
   amount   Float

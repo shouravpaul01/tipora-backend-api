@@ -13,15 +13,7 @@ import { CARD_DISABLE_CODES } from "./tips.constant";
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
-
-
-
-
 // ── Send tip ──────────────────────────────────────────
-
-
-
-
 
 const sendTip = async (
   senderId: string,
@@ -237,8 +229,7 @@ const sendTip = async (
     return { tip: updatedTip, transaction };
   } catch (error: any) {
     // ── Stripe error কিনা check করো ──────────────
-    const isStripeError =
-      error?.type?.startsWith("Stripe") || !!error?.raw;
+    const isStripeError = error?.type?.startsWith("Stripe") || !!error?.raw;
 
     const stripeRaw = error?.raw || error;
     const failureReason = isStripeError
@@ -252,10 +243,12 @@ const sendTip = async (
       (CARD_DISABLE_CODES.has(stripeRaw?.code) ||
         CARD_DISABLE_CODES.has(stripeRaw?.decline_code))
     ) {
-      await prisma.paymentMethod.update({
-        where: { id: paymentMethod.id },
-        data: { isActive: false },
-      }).catch(console.error);
+      await prisma.paymentMethod
+        .update({
+          where: { id: paymentMethod.id },
+          data: { isActive: false },
+        })
+        .catch(console.error);
     }
 
     // ── Tip + Transaction FAILED record ───────────
@@ -315,6 +308,30 @@ const getMySentTips = async (
     .rawFilter({ senderId })
     .sort()
     .paginate()
+    .include({
+      sender: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          photo: true,
+        },
+      },
+      receiver: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          photo: true,
+        },
+      },
+    })
     .execute();
 
   const meta = await queryBuilder.countTotal();
