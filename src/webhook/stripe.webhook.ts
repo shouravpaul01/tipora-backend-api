@@ -30,7 +30,7 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
 
         const stripePaymentMethodId = setupIntent.payment_method as string;
         const stripeCustomerId = setupIntent.customer as string;
-
+console.log("payment",stripePaymentMethodId,stripeCustomerId)
         // Find user by stripeCustomerId
         const user = await prisma.user.findFirst({
           where: { stripeCustomerId },

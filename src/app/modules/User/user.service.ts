@@ -26,6 +26,11 @@ const getMe = async (userId: string) => {
       stripeAccountVerified: true,
       createdAt: true,
       updatedAt: true,
+      auth:{
+        select:{
+          passwordChangedAt:true
+        }
+      }
     },
   });
 

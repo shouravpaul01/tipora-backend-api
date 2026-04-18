@@ -8,6 +8,8 @@ import { env } from "../../../config/env.config";
 import { PaymentType, TipStatus, TransactionStatus } from "@prisma/client";
 import { NotificationServices } from "../Notification/notification.service";
 import QueryBuilder from "../../../helpers/queryBuilder";
+import { getStripeErrorMessage } from "./tips.utils";
+import { CARD_DISABLE_CODES } from "./tips.constant";
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
@@ -25,32 +27,25 @@ const calculateFees = (amount: number) => {
 
 // ── Send tip ──────────────────────────────────────────
 
+
+
+
+
 const sendTip = async (
   senderId: string,
   payload: {
     receiverId: string;
     amount: number;
-    currency: string;
     message?: string;
-    paymentMethodId: string;
     walletToken?: string;
   },
 ) => {
-  const {
-    receiverId,
-    amount,
-    currency,
-    message,
-    paymentMethodId,
-    walletToken,
-  } = payload;
+  const { receiverId, amount, message, walletToken } = payload;
 
-  // Cannot tip yourself
   if (senderId === receiverId) {
     throw new ApiError(httpStatus.BAD_REQUEST, "You cannot tip yourself.");
   }
 
-  // Validate receiver — must exist, active, and have verified Connect account
   const receiver = await prisma.user.findUnique({
     where: { id: receiverId, isDeleted: false, status: "ACTIVE" },
     select: {
@@ -71,32 +66,39 @@ const sendTip = async (
     );
   }
 
-  // Validate sender's payment method
-  const paymentMethod = await prisma.paymentMethod.findUnique({
-    where: { id: paymentMethodId },
-  });
-  if (
-    !paymentMethod ||
-    paymentMethod.userId !== senderId ||
-    !paymentMethod.isActive
-  ) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "Invalid payment method.");
-  }
-
-  // Get sender info
   const sender = await prisma.user.findUnique({
     where: { id: senderId },
-    select: { stripeCustomerId: true, firstName: true, lastName: true },
+    select: {
+      stripeCustomerId: true,
+      firstName: true,
+      lastName: true,
+    },
   });
   if (!sender) {
     throw new ApiError(httpStatus.NOT_FOUND, "Sender not found.");
   }
 
+  // ── Default payment method auto-resolve ──────────
+  const paymentMethod = await prisma.paymentMethod.findFirst({
+    where: {
+      userId: senderId,
+      isDefault: true,
+      isActive: true,
+    },
+  });
+  if (!paymentMethod) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "No default payment method found. Please add one.",
+    );
+  }
+
+  const currency = "usd";
+
   const { platformFee, netAmount } = calculateFees(amount);
   const amountInCents = Math.round(amount * 100);
   const platformFeeInCents = Math.round(platformFee * 100);
 
-  // Create tip record — PENDING before payment attempt
   const tip = await prisma.tip.create({
     data: {
       senderId,
@@ -115,7 +117,6 @@ const sendTip = async (
 
   try {
     if (paymentMethod.type === PaymentType.CARD) {
-      // ── Card payment with Stripe Connect ──────────
       if (!paymentMethod.stripePaymentMethodId || !sender.stripeCustomerId) {
         throw new ApiError(
           httpStatus.BAD_REQUEST,
@@ -129,16 +130,9 @@ const sendTip = async (
         customer: sender.stripeCustomerId,
         payment_method: paymentMethod.stripePaymentMethodId,
         confirm: true,
-        automatic_payment_methods: {
-          enabled: true,
-          allow_redirects: "never",
-        },
-        // 3% platform fee — Stripe automatically splits
+        automatic_payment_methods: { enabled: true, allow_redirects: "never" },
         application_fee_amount: platformFeeInCents,
-        // Transfer directly to receiver's Connect account
-        transfer_data: {
-          destination: receiver.stripeAccountId,
-        },
+        transfer_data: { destination: receiver.stripeAccountId },
         description: `Tip from ${sender.firstName} to ${receiver.firstName}`,
         metadata: {
           tipId: tip.id,
@@ -163,7 +157,7 @@ const sendTip = async (
         );
       }
     } else {
-      // ── Apple Pay / Google Pay with Stripe Connect ─
+      // ── Apple Pay / Google Pay ────────────────────
       if (!walletToken) {
         throw new ApiError(
           httpStatus.BAD_REQUEST,
@@ -174,7 +168,7 @@ const sendTip = async (
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency,
-        payment_method: walletToken, // token from Apple/Google Pay
+        payment_method: walletToken,
         confirm: true,
         automatic_payment_methods: { enabled: true },
         application_fee_amount: platformFeeInCents,
@@ -206,7 +200,7 @@ const sendTip = async (
       }
     }
 
-    // ── Payment succeeded — update tip & create transaction ──
+    // ── Payment succeeded ─────────────────────────
     const [updatedTip, transaction] = await prisma.$transaction([
       prisma.tip.update({
         where: { id: tip.id },
@@ -215,7 +209,7 @@ const sendTip = async (
       prisma.transaction.create({
         data: {
           tipId: tip.id,
-          paymentMethodId,
+          paymentMethodId: paymentMethod.id,
           stripePaymentIntentId,
           stripeChargeId,
           stripeTransferId,
@@ -230,9 +224,7 @@ const sendTip = async (
       }),
     ]);
 
-    // ── Send notifications to both parties ────────
     const formattedAmount = `$${amount.toFixed(2)}`;
-
     await Promise.allSettled([
       NotificationServices.SendNotification({
         userId: receiverId,
@@ -252,7 +244,29 @@ const sendTip = async (
 
     return { tip: updatedTip, transaction };
   } catch (error: any) {
-    // ── Payment failed — update records ───────────
+    // ── Stripe error কিনা check করো ──────────────
+    const isStripeError =
+      error?.type?.startsWith("Stripe") || !!error?.raw;
+
+    const stripeRaw = error?.raw || error;
+    const failureReason = isStripeError
+      ? getStripeErrorMessage(stripeRaw)
+      : error?.message || "Unknown error";
+
+    // ── Card disable করো যদি দরকার হয় ───────────
+    if (
+      isStripeError &&
+      paymentMethod.type === PaymentType.CARD &&
+      (CARD_DISABLE_CODES.has(stripeRaw?.code) ||
+        CARD_DISABLE_CODES.has(stripeRaw?.decline_code))
+    ) {
+      await prisma.paymentMethod.update({
+        where: { id: paymentMethod.id },
+        data: { isActive: false },
+      }).catch(console.error);
+    }
+
+    // ── Tip + Transaction FAILED record ───────────
     await prisma.$transaction([
       prisma.tip.update({
         where: { id: tip.id },
@@ -261,31 +275,39 @@ const sendTip = async (
       prisma.transaction.create({
         data: {
           tipId: tip.id,
-          paymentMethodId,
+          paymentMethodId: paymentMethod.id,
           stripePaymentIntentId,
           amount,
           platformFee,
           netAmount,
           currency,
           status: TransactionStatus.FAILED,
-          failureReason: error?.message || "Unknown error",
+          failureReason,
         },
       }),
     ]);
 
-    // Notify sender of failure
+    // ── Sender কে notify করো ─────────────────────
     await NotificationServices.SendNotification({
       userId: senderId,
       title: "Tip failed",
-      body: `Your tip of $${amount.toFixed(2)} could not be processed.`,
+      body: failureReason,
       type: "TIP_FAILED",
-      data: { tipId: tip.id },
+      data: {
+        tipId: tip.id,
+        reason: failureReason,
+        // card disable হলে frontend জানাবে নতুন card add করতে
+        cardDisabled:
+          isStripeError &&
+          paymentMethod.type === PaymentType.CARD &&
+          (CARD_DISABLE_CODES.has(stripeRaw?.code) ||
+            CARD_DISABLE_CODES.has(stripeRaw?.decline_code)),
+      },
     }).catch(console.error);
 
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      error?.message || "Payment failed. Please try again.",
-    );
+    if (error instanceof ApiError) throw error;
+
+    throw new ApiError(httpStatus.BAD_REQUEST, failureReason);
   }
 };
 
