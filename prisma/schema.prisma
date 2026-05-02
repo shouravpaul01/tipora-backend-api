@@ -16,8 +16,8 @@ model User {
   firstName String
   lastName  String
   fullName  String?
-  email     String  @unique
-  phone     String?
+  email     String  
+  phone     String @unique
   photo     String?
   bio       String?
   fcmToken  String?

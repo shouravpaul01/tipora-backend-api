@@ -6,7 +6,9 @@ dotenv.config();
 
 const envSchema = z.object({
   // General
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
   FRONTEND_URL: z.string().url("FRONTEND_URL must be a valid URL"),
   BACKEND_IMAGE_URL: z.string().url("BACKEND_IMAGE_URL must be a valid URL"),
   PORT: z.coerce.number().default(5000),
@@ -20,26 +22,33 @@ const envSchema = z.object({
   // JWT
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   EXPIRES_IN: z.string().min(1, "EXPIRES_IN is required"),
-  REFRESH_TOKEN_SECRET: z.string().min(32, "REFRESH_TOKEN_SECRET must be at least 32 characters"),
-  REFRESH_TOKEN_EXPIRES_IN: z.string().min(1, "REFRESH_TOKEN_EXPIRES_IN is required"),
+  REFRESH_TOKEN_SECRET: z
+    .string()
+    .min(32, "REFRESH_TOKEN_SECRET must be at least 32 characters"),
+  REFRESH_TOKEN_EXPIRES_IN: z
+    .string()
+    .min(1, "REFRESH_TOKEN_EXPIRES_IN is required"),
   RESET_PASS_TOKEN: z.string().min(1, "RESET_PASS_TOKEN is required"),
-  RESET_PASS_TOKEN_EXPIRES_IN: z.string().min(1, "RESET_PASS_TOKEN_EXPIRES_IN is required"),
+  RESET_PASS_TOKEN_EXPIRES_IN: z
+    .string()
+    .min(1, "RESET_PASS_TOKEN_EXPIRES_IN is required"),
   RESET_PASS_LINK: z.string().url("RESET_PASS_LINK must be a valid URL"),
 
   // Email
   EMAIL: z.string().email("EMAIL must be a valid email address"),
   APP_PASS: z.string().min(1, "APP_PASS is required"),
 
+  // AWS S3
+  AWS_S3_REGION: z.string().min(1, " AWS_S3_REGION is required"),
+  AWS_S3_ENDPOINT: z.string().url("AWS_S3_ENDPOINT must be a valid URL"),
+  AWS_S3_ACCESS_KEY: z.string().min(1, "AWS_S3_ACCESS_KEY is required"),
+  AWS_S3_SECRET_KEY: z.string().min(1, "AWS_S3_SECRET_KEY is required"),
+  AWS_S3_BUCKET: z.string().min(1, "AWS_S3_BUCKET is required"),
 
- 
- // AWS S3
- AWS_S3_REGION:z.string().min(1, " AWS_S3_REGION is required"),
- AWS_S3_ENDPOINT: z.string().url("AWS_S3_ENDPOINT must be a valid URL"),
- AWS_S3_ACCESS_KEY:z.string().min(1, "AWS_S3_ACCESS_KEY is required"),
- AWS_S3_SECRET_KEY:z.string().min(1, "AWS_S3_SECRET_KEY is required"),
- AWS_S3_BUCKET:z.string().min(1, "AWS_S3_BUCKET is required"),
-
-
+  //Twilio
+  TWILIO_ACCOUNT_SID: z.string().nonempty("TWILIO_ACCOUNT_SID is required."),
+  TWILIO_AUTH_TOKEN: z.string().nonempty("TWILIO_AUTH_TOKEN is required."),
+  TWILIO_SENDER_PHONE: z.string().nonempty("TWILIO_SENDER_PHONE is required."),
   // DigitalOcean S3
   // DO_SPACE_ENDPOINT: z.string().url("DO_SPACE_ENDPOINT must be a valid URL"),
   // DO_SPACE_ACCESS_KEY: z.string().min(1, "DO_SPACE_ACCESS_KEY is required"),
@@ -47,7 +56,7 @@ const envSchema = z.object({
   // DO_SPACE_BUCKET: z.string().min(1, "DO_SPACE_BUCKET is required"),
 });
 
-const validateEnv= envSchema.safeParse(process.env);
+const validateEnv = envSchema.safeParse(process.env);
 if (!validateEnv.success) {
   console.error("❌ Invalid environment variables:\n");
   const errors = validateEnv.error.flatten().fieldErrors;

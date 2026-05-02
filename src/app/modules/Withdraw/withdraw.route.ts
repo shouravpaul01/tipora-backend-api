@@ -8,8 +8,6 @@ import { WithdrawControllers } from "./withdraw.controller";
 
 const router = express.Router();
 
-
-
 // Get personal withdraw history — query handled by QueryBuilder
 router.get(
   "/history",
