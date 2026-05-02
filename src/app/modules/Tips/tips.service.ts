@@ -14,7 +14,6 @@ import { CARD_DISABLE_CODES } from "./tips.constant";
 const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
 // ── Send tip ──────────────────────────────────────────
-
 const sendTip = async (
   senderId: string,
   payload: {
@@ -30,24 +29,18 @@ const sendTip = async (
     throw new ApiError(httpStatus.BAD_REQUEST, "You cannot tip yourself.");
   }
 
+  // Receiver only needs to exist and be active.
+  // Stripe account verification is only required at withdrawal time.
   const receiver = await prisma.user.findUnique({
     where: { id: receiverId, isDeleted: false, status: "ACTIVE" },
     select: {
       id: true,
       firstName: true,
       lastName: true,
-      stripeAccountId: true,
-      stripeAccountVerified: true,
     },
   });
   if (!receiver) {
     throw new ApiError(httpStatus.NOT_FOUND, "Receiver not found.");
-  }
-  if (!receiver.stripeAccountId || !receiver.stripeAccountVerified) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "Receiver has not set up their payout account yet.",
-    );
   }
 
   const sender = await prisma.user.findUnique({
@@ -96,7 +89,6 @@ const sendTip = async (
 
   let stripePaymentIntentId: string | undefined;
   let stripeChargeId: string | undefined;
-  let stripeTransferId: string | undefined;
   let applePayTransactionId: string | undefined;
 
   try {
@@ -108,6 +100,8 @@ const sendTip = async (
         );
       }
 
+      // No transfer_data — funds stay in the platform account.
+      // The platform fee is still collected via application_fee_amount.
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency,
@@ -116,7 +110,6 @@ const sendTip = async (
         confirm: true,
         automatic_payment_methods: { enabled: true, allow_redirects: "never" },
         application_fee_amount: platformFeeInCents,
-        transfer_data: { destination: receiver.stripeAccountId },
         description: `Tip from ${sender.firstName} to ${receiver.firstName}`,
         metadata: {
           tipId: tip.id,
@@ -132,7 +125,6 @@ const sendTip = async (
         typeof paymentIntent.latest_charge === "string"
           ? paymentIntent.latest_charge
           : paymentIntent.latest_charge?.id;
-      stripeTransferId = paymentIntent.transfer_data?.destination as string;
 
       if (paymentIntent.status !== "succeeded") {
         throw new ApiError(
@@ -149,6 +141,7 @@ const sendTip = async (
         );
       }
 
+      // No transfer_data — funds stay in the platform account.
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency,
@@ -156,7 +149,6 @@ const sendTip = async (
         confirm: true,
         automatic_payment_methods: { enabled: true },
         application_fee_amount: platformFeeInCents,
-        transfer_data: { destination: receiver.stripeAccountId },
         description: `Tip from ${sender.firstName} ${sender.lastName} to ${receiver.firstName}`,
         metadata: {
           tipId: tip.id,
@@ -174,7 +166,6 @@ const sendTip = async (
         typeof paymentIntent.latest_charge === "string"
           ? paymentIntent.latest_charge
           : paymentIntent.latest_charge?.id;
-      stripeTransferId = paymentIntent.transfer_data?.destination as string;
 
       if (paymentIntent.status !== "succeeded") {
         throw new ApiError(
@@ -185,18 +176,20 @@ const sendTip = async (
     }
 
     // ── Payment succeeded ─────────────────────────
-    const [updatedTip, transaction] = await prisma.$transaction([
-      prisma.tip.update({
+    // Update tip, create transaction record, and credit the receiver's wallet
+    // in a single atomic transaction.
+    const [updatedTip, transaction] = await prisma.$transaction(async (tx) => {
+      const updatedTip = await tx.tip.update({
         where: { id: tip.id },
         data: { status: TipStatus.COMPLETED },
-      }),
-      prisma.transaction.create({
+      });
+
+      const transaction = await tx.transaction.create({
         data: {
           tipId: tip.id,
           paymentMethodId: paymentMethod.id,
           stripePaymentIntentId,
           stripeChargeId,
-          stripeTransferId,
           applePayTransactionId,
           applicationFeeAmount: platformFee,
           amount,
@@ -205,8 +198,29 @@ const sendTip = async (
           currency,
           status: TransactionStatus.COMPLETED,
         },
-      }),
-    ]);
+      });
+
+      // Credit the net amount to the receiver's wallet.
+      // upsert ensures a Wallet is created automatically if the receiver
+      // does not have one yet.
+      await tx.wallet.upsert({
+        where: { userId: receiverId },
+        create: {
+          userId: receiverId,
+          currency,
+          totalEarned: netAmount,
+          availableBalance: netAmount,
+          totalWithdrawn: 0,
+          pendingBalance: 0,
+        },
+        update: {
+          totalEarned: { increment: netAmount },
+          availableBalance: { increment: netAmount },
+        },
+      });
+
+      return [updatedTip, transaction];
+    });
 
     const formattedAmount = `$${amount.toFixed(2)}`;
     await Promise.allSettled([
@@ -228,7 +242,7 @@ const sendTip = async (
 
     return { tip: updatedTip, transaction };
   } catch (error: any) {
-    // ── Stripe error কিনা check করো ──────────────
+    // ── Check if this is a Stripe error ──────────────
     const isStripeError = error?.type?.startsWith("Stripe") || !!error?.raw;
 
     const stripeRaw = error?.raw || error;
@@ -236,7 +250,7 @@ const sendTip = async (
       ? getStripeErrorMessage(stripeRaw)
       : error?.message || "Unknown error";
 
-    // ── Card disable করো যদি দরকার হয় ───────────
+    // ── Disable the card if the error code warrants it ───────────
     if (
       isStripeError &&
       paymentMethod.type === PaymentType.CARD &&
@@ -251,7 +265,7 @@ const sendTip = async (
         .catch(console.error);
     }
 
-    // ── Tip + Transaction FAILED record ───────────
+    // ── Record the failed tip and transaction ─────────────────────
     await prisma.$transaction([
       prisma.tip.update({
         where: { id: tip.id },
@@ -272,7 +286,7 @@ const sendTip = async (
       }),
     ]);
 
-    // ── Sender কে notify করো ─────────────────────
+    // ── Notify the sender of the failure ─────────────────────────
     await NotificationServices.SendNotification({
       userId: senderId,
       title: "Tip failed",
@@ -281,7 +295,7 @@ const sendTip = async (
       data: {
         tipId: tip.id,
         reason: failureReason,
-        // card disable হলে frontend জানাবে নতুন card add করতে
+        // Tells the frontend to prompt the user to add a new card
         cardDisabled:
           isStripeError &&
           paymentMethod.type === PaymentType.CARD &&

@@ -42,7 +42,8 @@ const getMe = async (userId: string) => {
           walletType:true,
           displayName:true
         }
-      }
+      },
+      wallet:true
     },
   });
 
