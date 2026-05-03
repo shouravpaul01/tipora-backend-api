@@ -1,7 +1,6 @@
 import bcrypt from "bcrypt";
 import prisma from "../shared/prisma";
 
-
 export const initiateSuperAdmin = async () => {
   const existingAdmin = await prisma.user.findFirst({
     where: { role: "ADMIN" },
@@ -20,7 +19,7 @@ export const initiateSuperAdmin = async () => {
       lastName: "Admin",
       fullName: "Super Admin",
       email: "admin@example.com",
-
+      phone: "+8801863272200",
       role: "ADMIN",
       auth: {
         create: {

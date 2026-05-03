@@ -6,16 +6,15 @@ const register = z.object({
     lastName: z.string().trim().nonempty("Last name is required."),
     email: z
       .string()
-      .nonempty("Email is required.")
-      .email("Valid email is required."),
+      .email("Valid email is required.").optional(),
     password: z.string().min(6, "Password must be at least 6 characters."),
-    phone: z.string().optional(),
+    phone: z.string().nonempty("Phone number is required").optional(),
   }),
 });
 
 const verifyOtp = z.object({
   body: z.object({
-    email: z.string().email("Valid email is required."),
+     phone: z.string().nonempty("Phone number is required"),
     otp: z.string().length(6, "OTP must be 6 digits."),
    fcmToken: z.string().nonempty("FCM token is required.").optional()
   }),
@@ -23,7 +22,7 @@ const verifyOtp = z.object({
 
 const login = z.object({
   body: z.object({
-    email: z.string().email("Valid email is required."),
+     phone: z.string().nonempty("Phone number is required"),
     password: z.string().nonempty("Password is required."),
     fcmToken: z.string().nonempty("FCM token is required.").optional()
   }),
@@ -31,13 +30,13 @@ const login = z.object({
 
 const forgotPassword = z.object({
   body: z.object({
-    email: z.string().email("Valid email is required."),
+    phone: z.string().nonempty("Phone number is required"),
   }),
 });
 
 const verifyResetOtp = z.object({
   body: z.object({
-    email: z.string().email("Valid email is required."),
+     phone: z.string().nonempty("Phone number is required"),
     otp: z.string().length(6, "OTP must be 6 digits."),
   }),
 });

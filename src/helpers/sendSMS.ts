@@ -3,8 +3,6 @@ import { twilioClient } from "../config/twilio.config";
 import { env } from "../config/env.config";
 
 
-
-
 type SendSMSPayload = {
   to: string;
   body: string;
