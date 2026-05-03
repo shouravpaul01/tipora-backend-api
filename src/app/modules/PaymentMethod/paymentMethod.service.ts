@@ -18,7 +18,7 @@ const getOrCreateStripeCustomer = async (userId: string) => {
   if (user.stripeCustomerId) return user.stripeCustomerId;
 
   const customer = await stripe.customers.create({
-    email: user.email,
+    
     name: `${user.firstName} ${user.lastName}`,
     metadata: { userId },
   });

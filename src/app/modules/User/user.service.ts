@@ -303,7 +303,7 @@ const deleteMe = async (userId: string) => {
   return { message: "Account deleted successfully." };
 };
 const createOnboardingLink = async (userId: string) => {
-  const user = await prisma.user.findFirst({
+  const user = await prisma.user.findUnique({
     where: { id: userId, isDeleted: false },
   });
 
@@ -317,7 +317,7 @@ const createOnboardingLink = async (userId: string) => {
   if (!accountId) {
     const account = await stripe.accounts.create({
       type: "express",
-      email: user.email,
+     
       capabilities: {
         transfers: { requested: true },
       },
