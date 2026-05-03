@@ -5,6 +5,7 @@ import { uploadFileToS3 } from "../../../helpers/uploadToS3";
 import stripe from "../../../helpers/stripe";
 import Stripe from "stripe";
 import ApiError from "../../../errors/ApiErrors";
+import { deleteUserQueue } from "./user.queue";
 
 // ── get my profile ────────────────────────────────────
 
@@ -26,24 +27,24 @@ const getMe = async (userId: string) => {
       stripeAccountVerified: true,
       createdAt: true,
       updatedAt: true,
-      auth:{
-        select:{
-          passwordChangedAt:true
-        }
-      },
-      paymentMethods:{
-        where:{
-          isDefault:true
+      auth: {
+        select: {
+          passwordChangedAt: true,
         },
-        select:{
-          id:true,
-          type:true,
-          brand:true,
-          walletType:true,
-          displayName:true
-        }
       },
-      wallet:true
+      paymentMethods: {
+        where: {
+          isDefault: true,
+        },
+        select: {
+          id: true,
+          type: true,
+          brand: true,
+          walletType: true,
+          displayName: true,
+        },
+      },
+      wallet: true,
     },
   });
 
@@ -281,24 +282,38 @@ const updateMe = async (
 };
 // ── delete my account ─────────────────────────────────
 
-const deleteMe = async (userId: string) => {
+const deleteMe = async (userId: string, res: any) => {
+  const timestamp = Date.now();
   const user = await prisma.user.findUnique({
-    where: { id: userId, isDeleted: false },
+    where: { id: userId },
+    select: { id: true },
   });
 
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
   }
-
-  // soft delete
   await prisma.user.update({
     where: { id: userId },
     data: {
       isDeleted: true,
       status: "BLOCKED",
+      email: `deleted_${timestamp}_${userId}@deleted.com`,
+      phone: `deleted_${timestamp}_${userId}`,
+
       fcmToken: null,
     },
   });
+  // Clear session immediately
+  res.clearCookie("accessToken");
+  res.clearCookie("refreshToken");
+
+  // Push permanent deletion to background — no delay, runs immediately
+  // jobId prevents duplicate jobs if called twice
+  await deleteUserQueue.add(
+    "permanent-delete",
+    { userId },
+    { jobId: `delete-user-${userId}` },
+  );
 
   return { message: "Account deleted successfully." };
 };
@@ -317,7 +332,7 @@ const createOnboardingLink = async (userId: string) => {
   if (!accountId) {
     const account = await stripe.accounts.create({
       type: "express",
-     
+
       capabilities: {
         transfers: { requested: true },
       },
