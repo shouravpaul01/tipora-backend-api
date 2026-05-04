@@ -8,7 +8,7 @@ const register = z.object({
       .string()
       .email("Valid email is required.").optional(),
     password: z.string().min(6, "Password must be at least 6 characters."),
-    phone: z.string().nonempty("Phone number is required").optional(),
+    phone: z.string().nonempty("Phone number is required"),
   }),
 });
 

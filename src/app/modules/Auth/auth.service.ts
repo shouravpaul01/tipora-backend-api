@@ -62,9 +62,11 @@ const register = async (payload: {
 
   const hashedPassword = await bcrypt.hash(payload.password, 12);
 
+  const { password, ...userData } = payload;
+
   const user = await prisma.user.create({
     data: {
-      ...payload,
+      ...userData,
       fullName: `${payload.firstName} ${payload.lastName}`,
       auth: {
         create: { password: hashedPassword },
@@ -75,7 +77,6 @@ const register = async (payload: {
 
   const otp = generateOtp();
 
-  // Store OTP against phone number
   await redis.set(`otp:register:${user.phone}`, otp, "EX", 5 * 60);
 
   await sendSMS({
@@ -85,7 +86,6 @@ const register = async (payload: {
 
   return user;
 };
-
 // ── verify OTP ────────────────────────────────────────────────────────────────
 // Verifies the phone OTP sent during registration.
 
