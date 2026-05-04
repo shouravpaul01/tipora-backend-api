@@ -102,6 +102,7 @@ const verifyOtp = async (
     );
   }
 
+  //  Update user (verify phone)
   const user = await prisma.user.update({
     where: { phone: payload.phone },
     data: {
@@ -111,8 +112,24 @@ const verifyOtp = async (
     select: { id: true, fullName: true, phone: true, email: true, role: true },
   });
 
+  //  Wallet check
+  const existingWallet = await prisma.wallet.findUnique({
+    where: { userId: user.id },
+  });
+
+  //  Create wallet if not exists
+  if (!existingWallet) {
+    await prisma.wallet.create({
+      data: {
+        userId: user.id,
+      },
+    });
+  }
+
   await redis.del(`otp:register:${payload.phone}`);
+
   const tokens = setTokenCookies(res, user.id, user.role);
+
   return { user, ...tokens };
 };
 
