@@ -34,7 +34,7 @@ const updateMe = catchAsync(async (req: Request, res: Response) => {
 });
 
 const deleteMe = catchAsync(async (req: Request, res: Response) => {
-  const result = await UserServices.deleteMe(req.user.id);
+  const result = await UserServices.deleteMe(req.user.id,res);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
