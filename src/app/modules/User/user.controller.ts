@@ -56,7 +56,7 @@ const startOnboarding = catchAsync(async (req: Request, res: Response) => {
 // ── check onboarding status ─────────────────────────
 
 const updateOnboardingStatus = catchAsync(async (req: Request, res: Response) => {
-  const result = await UserServices.updateOnboardingStatus(req.user.id);
+  const result = await UserServices.updateOnboardingStatus(req.user.id ,null);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

@@ -43,7 +43,7 @@ console.log("payment",stripePaymentMethodId,stripeCustomerId)
         break;
 
       case "account.updated":
-        await UserServices.updateOnboardingStatus(
+        await UserServices.updateOnboardingStatus(null,
           event.data.object as Stripe.Account,
         );
         break;

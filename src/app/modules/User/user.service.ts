@@ -363,26 +363,48 @@ const createOnboardingLink = async (userId: string) => {
 
 // ── check onboarding status ─────────────────────────
 
-const updateOnboardingStatus = async (account: Stripe.Account) => {
+const updateOnboardingStatus = async (userId: string | null, account: Stripe.Account | null) => {
   console.log("account", account);
-  const isVerified =
-    account.details_submitted &&
-    account.charges_enabled &&
-    account.payouts_enabled;
 
-  await prisma.user.updateMany({
-    where: {
-      stripeAccountId: account.id,
-    },
-    data: {
-      stripeAccountVerified: isVerified,
-    },
-  });
+  let stripeAccount = account;
+
+  if (userId) {
+    // userId আছে → DB থেকে stripeAccountId বের করো → Stripe থেকে fresh check
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { stripeAccountId: true },
+    });
+
+    if (!user?.stripeAccountId) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Stripe account not found for this user.");
+    }
+
+    // Stripe থেকে live account data আনো
+    stripeAccount = await stripe.accounts.retrieve(user.stripeAccountId);
+  }
+
+  const isVerified =
+    stripeAccount?.details_submitted &&
+    stripeAccount?.charges_enabled &&
+    stripeAccount?.payouts_enabled;
+
+  if (userId) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { stripeAccountVerified: isVerified },
+    });
+  } else {
+    await prisma.user.updateMany({
+      where: { stripeAccountId: stripeAccount?.id },
+      data: { stripeAccountVerified: isVerified },
+    });
+  }
+
   return {
     isVerified,
-    detailsSubmitted: account.details_submitted,
-    chargesEnabled: account.charges_enabled,
-    payoutsEnabled: account.payouts_enabled,
+    detailsSubmitted: stripeAccount?.details_submitted,
+    chargesEnabled: stripeAccount?.charges_enabled,
+    payoutsEnabled: stripeAccount?.payouts_enabled,
   };
 };
 

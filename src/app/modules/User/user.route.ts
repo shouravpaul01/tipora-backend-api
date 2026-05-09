@@ -26,5 +26,9 @@ router.post(
   auth(),
   UserController.startOnboarding,
 );
-
+router.patch(
+  "/onboarding/status",
+  auth(),
+  UserController.updateOnboardingStatus,
+);
 export const UserRoutes = router;
