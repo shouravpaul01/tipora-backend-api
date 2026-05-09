@@ -389,11 +389,8 @@ const changePassword = async (
 
 // ── logout ────────────────────────────────────────────────────────────────────
 
-const logout = async (userId: string, res: any) => {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { fcmToken: null },
-  });
+const logout = async ( res: any) => {
+ 
 
   res.clearCookie("accessToken");
   res.clearCookie("refreshToken");

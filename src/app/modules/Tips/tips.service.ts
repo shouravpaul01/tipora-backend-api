@@ -29,8 +29,6 @@ const sendTip = async (
     throw new ApiError(httpStatus.BAD_REQUEST, "You cannot tip yourself.");
   }
 
-  // Receiver only needs to exist and be active.
-  // Stripe account verification is only required at withdrawal time.
   const receiver = await prisma.user.findUnique({
     where: { id: receiverId, isDeleted: false, status: "ACTIVE" },
     select: {
@@ -55,7 +53,6 @@ const sendTip = async (
     throw new ApiError(httpStatus.NOT_FOUND, "Sender not found.");
   }
 
-  // ── Default payment method auto-resolve ──────────
   const paymentMethod = await prisma.paymentMethod.findFirst({
     where: {
       userId: senderId,
@@ -74,7 +71,6 @@ const sendTip = async (
 
   const { platformFee, netAmount } = calculateFees(amount);
   const amountInCents = Math.round(amount * 100);
-  const platformFeeInCents = Math.round(platformFee * 100);
 
   const tip = await prisma.tip.create({
     data: {
@@ -100,8 +96,9 @@ const sendTip = async (
         );
       }
 
-      // No transfer_data — funds stay in the platform account.
-      // The platform fee is still collected via application_fee_amount.
+      // Funds land directly in the platform account.
+      // No transfer_data or application_fee_amount needed —
+      // platform fee is tracked internally via platformFee field.
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency,
@@ -109,7 +106,6 @@ const sendTip = async (
         payment_method: paymentMethod.stripePaymentMethodId,
         confirm: true,
         automatic_payment_methods: { enabled: true, allow_redirects: "never" },
-        application_fee_amount: platformFeeInCents,
         description: `Tip from ${sender.firstName} to ${receiver.firstName}`,
         metadata: {
           tipId: tip.id,
@@ -141,14 +137,12 @@ const sendTip = async (
         );
       }
 
-      // No transfer_data — funds stay in the platform account.
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency,
         payment_method: walletToken,
         confirm: true,
         automatic_payment_methods: { enabled: true },
-        application_fee_amount: platformFeeInCents,
         description: `Tip from ${sender.firstName} ${sender.lastName} to ${receiver.firstName}`,
         metadata: {
           tipId: tip.id,
@@ -176,8 +170,6 @@ const sendTip = async (
     }
 
     // ── Payment succeeded ─────────────────────────
-    // Update tip, create transaction record, and credit the receiver's wallet
-    // in a single atomic transaction.
     const [updatedTip, transaction] = await prisma.$transaction(async (tx) => {
       const updatedTip = await tx.tip.update({
         where: { id: tip.id },
@@ -200,9 +192,6 @@ const sendTip = async (
         },
       });
 
-      // Credit the net amount to the receiver's wallet.
-      // upsert ensures a Wallet is created automatically if the receiver
-      // does not have one yet.
       await tx.wallet.upsert({
         where: { userId: receiverId },
         create: {
@@ -242,7 +231,6 @@ const sendTip = async (
 
     return { tip: updatedTip, transaction };
   } catch (error: any) {
-    // ── Check if this is a Stripe error ──────────────
     const isStripeError = error?.type?.startsWith("Stripe") || !!error?.raw;
 
     const stripeRaw = error?.raw || error;
@@ -250,7 +238,6 @@ const sendTip = async (
       ? getStripeErrorMessage(stripeRaw)
       : error?.message || "Unknown error";
 
-    // ── Disable the card if the error code warrants it ───────────
     if (
       isStripeError &&
       paymentMethod.type === PaymentType.CARD &&
@@ -265,7 +252,6 @@ const sendTip = async (
         .catch(console.error);
     }
 
-    // ── Record the failed tip and transaction ─────────────────────
     await prisma.$transaction([
       prisma.tip.update({
         where: { id: tip.id },
@@ -286,7 +272,6 @@ const sendTip = async (
       }),
     ]);
 
-    // ── Notify the sender of the failure ─────────────────────────
     await NotificationServices.SendNotification({
       userId: senderId,
       title: "Tip failed",
@@ -295,7 +280,6 @@ const sendTip = async (
       data: {
         tipId: tip.id,
         reason: failureReason,
-        // Tells the frontend to prompt the user to add a new card
         cardDisabled:
           isStripeError &&
           paymentMethod.type === PaymentType.CARD &&
