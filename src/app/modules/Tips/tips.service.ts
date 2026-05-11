@@ -297,13 +297,18 @@ const sendTip = async (
 // ── Get my sent tips (paginated) ──────────────────────
 
 const getMySentTips = async (
-  senderId: string,
+  userId: string,
   query: Record<string, unknown>,
 ) => {
   const queryBuilder = new QueryBuilder(prisma.tip, query);
 
   const tips = await queryBuilder
-    .rawFilter({ senderId })
+    .rawFilter({
+      OR: [
+        { senderId: userId },
+        { receiverId: userId },
+      ],
+    })
     .sort()
     .paginate()
     .include({
