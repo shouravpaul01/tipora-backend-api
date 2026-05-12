@@ -5,8 +5,7 @@ const register = z.object({
     firstName: z.string().trim().nonempty("First name is required."),
     lastName: z.string().trim().nonempty("Last name is required."),
     email: z
-      .string()
-      .email("Valid email is required.").optional(),
+      .string().optional(),
     password: z.string().min(6, "Password must be at least 6 characters."),
     phone: z.string().nonempty("Phone number is required"),
   }),
