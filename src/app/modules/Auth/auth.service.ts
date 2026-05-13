@@ -41,6 +41,7 @@ const setTokenCookies = (res: any, userId: string, role: string) => {
 // ── register ──────────────────────────────────────────────────────────────────
 // Creates the user and sends a phone OTP for verification.
 
+
 const register = async (payload: {
   firstName: string;
   lastName: string;
@@ -48,11 +49,13 @@ const register = async (payload: {
   password: string;
   phone: string;
 }) => {
-  const existing = await prisma.user.findUnique({
+  const existingUser = await prisma.user.findUnique({
     where: { phone: payload.phone },
+    include: { auth: true },
   });
 
-  if (existing) {
+  // ── Verified account already exists ───────────────────────────────
+  if (existingUser?.isPhoneVerified) {
     throw new ApiPathError(
       httpStatus.CONFLICT,
       "phone",
@@ -61,31 +64,52 @@ const register = async (payload: {
   }
 
   const hashedPassword = await bcrypt.hash(payload.password, 12);
-
   const { password, ...userData } = payload;
 
-  const user = await prisma.user.create({
-    data: {
-      ...userData,
-      fullName: `${payload.firstName} ${payload.lastName}`,
-      auth: {
-        create: { password: hashedPassword },
+  let user;
+
+  if (existingUser) {
+    // ── Update existing unverified user ─────────────────────────────
+    user = await prisma.user.update({
+      where: { phone: payload.phone },
+      data: {
+        ...userData,
+        fullName: `${payload.firstName} ${payload.lastName}`,
+        auth: {
+          upsert: {
+            update: { password: hashedPassword },
+            create: { password: hashedPassword },
+          },
+        },
       },
-    },
-    select: { id: true, fullName: true, phone: true, email: true, role: true },
-  });
+      select: { id: true, fullName: true, phone: true, email: true, role: true },
+    });
+  } else {
+    // ── Create new user ──────────────────────────────────────────────
+    user = await prisma.user.create({
+      data: {
+        ...userData,
+        fullName: `${payload.firstName} ${payload.lastName}`,
+        auth: {
+          create: { password: hashedPassword },
+        },
+      },
+      select: { id: true, fullName: true, phone: true, email: true, role: true },
+    });
+  }
 
+  // ── OTP send (একবারই) ────────────────────────────────────────────
   const otp = generateOtp();
-
-  await redis.set(`otp:register:${user.phone}`, otp, "EX", 5 * 60);
-
+  await redis.set(`otp:register:${payload.phone}`, otp, "EX", 5 * 60);
   await sendSMS({
     body: `Your OTP code is ${otp}. It expires in 5 minutes.`,
-    to: user.phone,
+    to: payload.phone,
   });
 
-  return user;
+  return { user };
 };
+
+
 // ── verify OTP ────────────────────────────────────────────────────────────────
 // Verifies the phone OTP sent during registration.
 
@@ -145,9 +169,11 @@ const login = async (
     include: { auth: true },
   });
 
-  if (!user || !user.auth) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid credentials.");
+  // ── User নেই বা phone verify হয়নি → same error দেখাও ─────────────
+  if (!user || !user.auth || !user.isPhoneVerified) {
+    throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
   }
+
   if (user.status === "BLOCKED") {
     throw new ApiError(httpStatus.FORBIDDEN, "Your account is blocked.");
   }
@@ -158,22 +184,6 @@ const login = async (
   );
   if (!passwordMatch) {
     throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid credentials.");
-  }
-
-  // If phone is not verified, resend OTP
-  if (!user.isPhoneVerified) {
-    const otp = generateOtp();
-    await redis.set(`otp:register:${user.phone}`, otp, "EX", 5 * 60);
-
-    await sendSMS({
-      body: `Your OTP code is ${otp}. It expires in 5 minutes.`,
-      to: user.phone,
-    });
-
-    throw new ApiError(
-      httpStatus.FORBIDDEN,
-      "Phone not verified. A new OTP has been sent to your phone.",
-    );
   }
 
   await prisma.userAuth.update({
