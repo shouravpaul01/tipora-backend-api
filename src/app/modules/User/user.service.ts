@@ -6,6 +6,7 @@ import stripe from "../../../helpers/stripe";
 import Stripe from "stripe";
 import ApiError from "../../../errors/ApiErrors";
 import { deleteUserQueue } from "./user.queue";
+import { env } from "../../../config/env.config";
 
 // ── get my profile ────────────────────────────────────
 
@@ -351,8 +352,8 @@ const createOnboardingLink = async (userId: string) => {
   // ── create onboarding link ─────────────────────────
   const accountLink = await stripe.accountLinks.create({
     account: accountId,
-    refresh_url: `${process.env.FRONTEND_URL}/onboarding/refresh`,
-    return_url: `${process.env.FRONTEND_URL}/onboarding/success`,
+    refresh_url: `${env.FRONTEND_URL}/onboarding/refresh`,
+    return_url: `${env.FRONTEND_URL}/onboarding/success`,
     type: "account_onboarding",
   });
 
