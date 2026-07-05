@@ -37,12 +37,11 @@ model User {
   // ── Relations ─────────────────────────────────
   auth             UserAuth?
   paymentMethods   PaymentMethod[]
-  sentTips         Tip[]              @relation("SentTips")
-  receivedTips     TipRecipient[]     @relation("ReceivedTips") // tip can be split, so relation moved to TipRecipient
+  sentTips         Tip[]             @relation("SentTips")
+  receivedTips     Tip[]             @relation("ReceivedTips")
   notifications    Notification[]
   wallet           Wallet?
-  withdrawTransections WithdrawTransection[]
-
+  withdrawRequests WithdrawRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -112,22 +111,20 @@ model PaymentMethod {
 
 // ═══════════════════════════════════════════════
 // TIP MODEL
-// A tip is created by ONE sender but can be split
-// across MULTIPLE receivers. No platform fee is
-// deducted from tips — the full amount is
-// distributed among recipients per their share.
 // ═══════════════════════════════════════════════
 
 model Tip {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  // ── Sender ─────────────────────────────────────
-  senderId String @db.ObjectId
-  sender   User   @relation("SentTips", fields: [senderId], references: [id])
+  // ── Sender & Receiver ─────────────────────────
+  senderId   String @db.ObjectId
+  sender     User   @relation("SentTips", fields: [senderId], references: [id])
+  receiverId String @db.ObjectId
+  receiver   User   @relation("ReceivedTips", fields: [receiverId], references: [id])
 
   // ── Amount Details ────────────────────────────
-  totalAmount Float // Full amount charged to sender, split among recipients
-  currency    String @default("usd")
+  amount   Float
+  currency String @default("usd")
 
   // ── Optional Message ──────────────────────────
   message String?
@@ -136,9 +133,6 @@ model Tip {
   status      TipStatus    @default(PENDING)
   transaction Transaction?
 
-  // ── Split Recipients ───────────────────────────
-  recipients TipRecipient[]
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -146,46 +140,10 @@ model Tip {
 }
 
 // ═══════════════════════════════════════════════
-// TIP RECIPIENT MODEL
-// Each row = one receiver's share of a (possibly
-// split) tip. No platform fee here — recipient's
-// wallet is credited with exactly `amount`.
-// ═══════════════════════════════════════════════
-
-model TipRecipient {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-
-  tipId String @db.ObjectId
-  tip   Tip    @relation(fields: [tipId], references: [id])
-
-  receiverId String @db.ObjectId
-  receiver   User   @relation("ReceivedTips", fields: [receiverId], references: [id])
-
-  amount    Float // This recipient's equal gross share of the tip (before Stripe fee)
-  netAmount Float @default(0) // amount minus this recipient's proportional share of the actual Stripe fee — this is what's credited to their wallet
-
-  // Per-recipient status — useful if wallet credit needs
-  // to be tracked/retried independently for each split share
-  status TipStatus @default(PENDING)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([tipId])
-  @@index([receiverId])
-  @@map("tip_recipients")
-}
-
-// ═══════════════════════════════════════════════
 // TRANSACTION MODEL
-// Payment record for each tip (single charge to
-// sender covering the whole split). Money is held
-// in the platform Stripe account. The platform takes
-// NO fee of its own — but Stripe's own processing fee
-// is real and unavoidable, so the actual fee (pulled
-// from Stripe's balance transaction after the charge
-// succeeds) is recorded here and split proportionally
-// across recipients (see TipRecipient.netAmount).
+// Payment record for each tip.
+// Money is held in the platform Stripe account.
+// Receiver's wallet balance is updated on success.
 // ═══════════════════════════════════════════════
 
 model Transaction {
@@ -199,15 +157,16 @@ model Transaction {
   // ── Stripe References ─────────────────────────
   stripePaymentIntentId String? // PaymentIntent ID from Stripe
   stripeChargeId        String? // Charge ID after payment is captured
+  applicationFeeAmount  Float? // Platform fee collected via Stripe
 
   // ── Apple Pay Reference ───────────────────────
   applePayTransactionId String?
 
-  // ── Financial Details ──────────────────────────
-  amount    Float // Total amount charged to the sender (no platform fee deducted)
-  stripeFee Float  @default(0) // Actual Stripe processing fee, pulled from the balance transaction after success
-  netAmount Float  @default(0) // amount - stripeFee -> total actually available to distribute to recipients
-  currency  String @default("usd")
+  // ── Financial Breakdown ───────────────────────
+  amount      Float // Total amount charged to the sender
+  platformFee Float  @default(0) // Fee retained by the platform
+  netAmount   Float // Amount credited to the receiver's wallet after fee
+  currency    String @default("usd")
 
   // ── Status Tracking ───────────────────────────
   status        TransactionStatus @default(PENDING)
@@ -233,13 +192,13 @@ model Wallet {
   user   User   @relation(fields: [userId], references: [id])
 
   totalEarned      Float @default(0) // Lifetime total received from tips (never decreases)
-  totalWithdrawn   Float @default(0) // Lifetime total successfully withdrawn (net, after any fee)
+  totalWithdrawn   Float @default(0) // Lifetime total successfully withdrawn
   availableBalance Float @default(0) // Amount the user can currently withdraw
-
+  pendingBalance   Float @default(0) // Amount locked in an in-progress withdrawal
 
   currency String @default("usd")
 
-  withdrawTransections WithdrawTransection[]
+  withdrawRequests WithdrawRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -250,17 +209,11 @@ model Wallet {
 // ═══════════════════════════════════════════════
 // WITHDRAW REQUEST MODEL
 // Created when a user requests a withdrawal.
-// Two modes:
-//   - INSTANT : money sent right away, our 3% platformFee is deducted.
-//               Stripe ALSO charges its own real instant-payout fee
-//               (pulled from the payout's balance transaction) — that
-//               real cost is tracked separately in stripeFee.
-//   - STANDARD: money sent after normal payout delay, no fee at all.
 // Automatically triggers a Stripe Transfer to the
 // user's connected account — no admin approval needed.
 // ═══════════════════════════════════════════════
 
-model WithdrawTransection {
+model WithdrawRequest {
   id     String @id @default(auto()) @map("_id") @db.ObjectId
   userId String @db.ObjectId
   user   User   @relation(fields: [userId], references: [id])
@@ -268,13 +221,8 @@ model WithdrawTransection {
   walletId String @db.ObjectId
   wallet   Wallet @relation(fields: [walletId], references: [id])
 
-  type WithdrawType @default(STANDARD) // INSTANT | STANDARD
-
-  amount      Float // Amount requested from wallet balance
-  platformFee Float @default(0) // Our 3% fee if INSTANT, else 0 — this is what WE charge the user
-  stripeFee   Float @default(0) // Stripe's own real instant-payout fee (pulled from the balance transaction), separate from our platformFee
-  netAmount   Float // amount - platformFee -> actually transferred to user
-  currency    String @default("usd")
+  amount   Float
+  currency String @default("usd")
 
   // ── Stripe References ─────────────────────────
   stripeTransferId String? // Transfer ID from platform account to receiver's Connect account
@@ -289,7 +237,6 @@ model WithdrawTransection {
 
   @@index([userId])
   @@index([status])
-  @@index([type])
   @@map("withdraw_requests")
 }
 
@@ -313,37 +260,6 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@map("notifications")
-}
-
-
-
-
-// ═══════════════════════════════════════════════
-// PLATFORM REVENUE MODEL
-// Ledger of platform earnings. Since tips no longer
-// carry a fee, the only current source is the 3%
-// instant-withdraw fee. Kept as its own table (rather
-// than summing WithdrawRequest each time) so the admin
-// dashboard can query/aggregate revenue quickly.
-// ═══════════════════════════════════════════════
-
-model PlatformRevenue {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
-
-  source RevenueSource @default(WITHDRAW_FEE)
-
-  amount   Float
-  currency String @default("usd")
-
-  // ── Reference to the record that generated this revenue ──
-  referenceId   String @db.ObjectId  @unique // e.g. WithdrawRequest id
-  referenceType String @default("WithdrawRequest")
-
-  createdAt DateTime @default(now())
-
-  @@index([source])
-  @@index([createdAt])
-  @@map("platform_revenues")
 }
 
 // ═══════════════════════════════════════════════
@@ -370,7 +286,7 @@ enum TipStatus {
   PENDING // Tip created, payment not yet processed
   COMPLETED // Payment successful, receiver's wallet credited
   FAILED // Payment failed
-  REFUNDED // Payment was refunded
+  REFUNDED // Payment was refunded to the sender
 }
 
 enum TransactionStatus {
@@ -379,11 +295,6 @@ enum TransactionStatus {
   COMPLETED // Payment captured successfully
   FAILED // Payment failed
   REFUNDED // Payment refunded
-}
-
-enum WithdrawType {
-  INSTANT // Immediate payout, 3% platform fee deducted
-  STANDARD // Normal payout delay, no platform fee
 }
 
 enum WithdrawStatus {
@@ -403,9 +314,4 @@ enum NotificationType {
   WITHDRAW_COMPLETED
   WITHDRAW_FAILED
   GENERAL
-  PLATFORM_FEE_EARNED
-}
-
-enum RevenueSource {
-  WITHDRAW_FEE
 }

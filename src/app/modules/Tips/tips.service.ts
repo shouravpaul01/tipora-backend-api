@@ -8,57 +8,133 @@ import { env } from "../../../config/env.config";
 import { PaymentType, TipStatus, TransactionStatus } from "@prisma/client";
 import { NotificationServices } from "../Notification/notification.service";
 import QueryBuilder from "../../../helpers/queryBuilder";
-import { calculateFees, getStripeErrorMessage } from "./tips.utils";
+import { getStripeErrorMessage } from "./tips.utils";
 import { CARD_DISABLE_CODES } from "./tips.constant";
 
 const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
-// ── Send tip ──────────────────────────────────────────
-const sendTip = async (
-  senderId: string,
-  payload: {
-    receiverId: string;
-    amount: number;
-    message?: string;
-    walletToken?: string;
-  },
-) => {
-  const { receiverId, amount, message, walletToken } = payload;
+// ── Types ──────────────────────────────────────────────
 
-  if (senderId === receiverId) {
+type TipRecipientInput = {
+  receiverId: string;
+  amount: number;
+};
+
+type SendTipPayload = {
+  receiverIds: string[];
+  totalAmount: number;
+  message?: string;
+  walletToken?: string;
+};
+
+// ── Split a total amount equally among receivers ──────
+// Works in cents so the shares always sum back up to
+// exactly totalAmount (no floating point drift). If the
+// amount doesn't divide evenly, the leftover cents are
+// handed out one-by-one to the first few receivers.
+const splitEqually = (
+  receiverIds: string[],
+  totalAmount: number,
+): TipRecipientInput[] => {
+  const totalCents = Math.round(totalAmount * 100);
+  const n = receiverIds.length;
+  const baseCents = Math.floor(totalCents / n);
+  const remainderCents = totalCents % n;
+
+  return receiverIds.map((receiverId, index) => ({
+    receiverId,
+    amount: (baseCents + (index < remainderCents ? 1 : 0)) / 100,
+  }));
+};
+
+// ── Split an actual Stripe fee proportionally across recipients ──
+// Works in cents using the largest-remainder method so the
+// per-recipient fee shares always sum back up to exactly the
+// real fee Stripe charged (no floating point drift).
+const distributeFeeProportionally = (
+  recipientAmounts: number[],
+  totalFeeCents: number,
+): number[] => {
+  if (totalFeeCents <= 0) return recipientAmounts.map(() => 0);
+
+  const amountsInCents = recipientAmounts.map((a) => Math.round(a * 100));
+  const totalAmountCents = amountsInCents.reduce((s, a) => s + a, 0);
+
+  const rawShares = amountsInCents.map(
+    (cents) => (totalFeeCents * cents) / totalAmountCents,
+  );
+  const floors = rawShares.map((s) => Math.floor(s));
+  const allocated = floors.reduce((s, f) => s + f, 0);
+  let remainder = totalFeeCents - allocated;
+
+  // Give the leftover cents to whichever recipients had the largest
+  // fractional remainder, so the total matches exactly.
+  const order = rawShares
+    .map((s, i) => ({ i, frac: s - Math.floor(s) }))
+    .sort((a, b) => b.frac - a.frac);
+
+  const result = [...floors];
+  for (let k = 0; k < remainder; k++) {
+    result[order[k % order.length].i] += 1;
+  }
+  return result;
+};
+
+// ── Pull the real Stripe processing fee off an expanded charge ──
+// Requires the PaymentIntent to have been created with
+// `expand: ["latest_charge.balance_transaction"]`.
+const getBalanceTransactionFeeCents = (
+  charge: Stripe.Charge | null | undefined,
+): number => {
+  if (!charge) return 0;
+  const balanceTransaction = charge.balance_transaction;
+  if (!balanceTransaction || typeof balanceTransaction === "string") return 0;
+  return balanceTransaction.fee ?? 0;
+};
+
+// ── Send tip (single or equally split across multiple receivers) ──
+
+const sendTip = async (senderId: string, payload: SendTipPayload) => {
+  const { receiverIds, totalAmount, message, walletToken } = payload;
+
+  if (!receiverIds || receiverIds.length === 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "At least one receiver is required.");
+  }
+  if (!totalAmount || totalAmount <= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "A valid total amount is required.");
+  }
+
+  // ── Validate receivers ─────────────────────────────
+  const uniqueReceiverIds = new Set(receiverIds);
+  if (uniqueReceiverIds.size !== receiverIds.length) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Duplicate receivers are not allowed.");
+  }
+  if (receiverIds.includes(senderId)) {
     throw new ApiError(httpStatus.BAD_REQUEST, "You cannot tip yourself.");
   }
 
-  const receiver = await prisma.user.findUnique({
-    where: { id: receiverId, isDeleted: false, status: "ACTIVE" },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-    },
+  // Split the total equally — remainder cents (if any) go to the first receivers
+  const recipients = splitEqually(receiverIds, totalAmount);
+
+  const receivers = await prisma.user.findMany({
+    where: { id: { in: receiverIds }, isDeleted: false, status: "ACTIVE" },
+    select: { id: true, firstName: true, lastName: true },
   });
-  if (!receiver) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Receiver not found.");
+  if (receivers.length !== receiverIds.length) {
+    throw new ApiError(httpStatus.NOT_FOUND, "One or more receivers not found.");
   }
+  const receiverMap = new Map(receivers.map((r) => [r.id, r]));
 
   const sender = await prisma.user.findUnique({
     where: { id: senderId },
-    select: {
-      stripeCustomerId: true,
-      firstName: true,
-      lastName: true,
-    },
+    select: { stripeCustomerId: true, firstName: true, lastName: true },
   });
   if (!sender) {
     throw new ApiError(httpStatus.NOT_FOUND, "Sender not found.");
   }
 
   const paymentMethod = await prisma.paymentMethod.findFirst({
-    where: {
-      userId: senderId,
-      isDefault: true,
-      isActive: true,
-    },
+    where: { userId: senderId, isDefault: true, isActive: true },
   });
   if (!paymentMethod) {
     throw new ApiError(
@@ -69,23 +145,37 @@ const sendTip = async (
 
   const currency = "usd";
 
-  const { platformFee, netAmount } = calculateFees(amount);
-  const amountInCents = Math.round(amount * 100);
+  // No platform fee on tips — sender is charged exactly totalAmount,
+  // and each receiver's wallet is credited with exactly their equal share.
+  const amountInCents = Math.round(totalAmount * 100);
 
   const tip = await prisma.tip.create({
     data: {
       senderId,
-      receiverId,
-      amount,
+      totalAmount,
       currency,
       message,
       status: TipStatus.PENDING,
+      recipients: {
+        create: recipients.map((r) => ({
+          receiverId: r.receiverId,
+          amount: r.amount,
+          status: TipStatus.PENDING,
+        })),
+      },
     },
+    include: { recipients: true },
   });
 
   let stripePaymentIntentId: string | undefined;
   let stripeChargeId: string | undefined;
   let applePayTransactionId: string | undefined;
+  let stripeFeeCents = 0; // actual fee Stripe took, pulled from the balance transaction
+
+  const receiverNames = recipients
+    .map((r) => receiverMap.get(r.receiverId)?.firstName)
+    .filter(Boolean)
+    .join(", ");
 
   try {
     if (paymentMethod.type === PaymentType.CARD) {
@@ -98,7 +188,7 @@ const sendTip = async (
 
       // Funds land directly in the platform account.
       // No transfer_data or application_fee_amount needed —
-      // platform fee is tracked internally via platformFee field.
+      // there is no platform fee on tips.
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency,
@@ -106,21 +196,22 @@ const sendTip = async (
         payment_method: paymentMethod.stripePaymentMethodId,
         confirm: true,
         automatic_payment_methods: { enabled: true, allow_redirects: "never" },
-        description: `Tip from ${sender.firstName} to ${receiver.firstName}`,
+        description: `Tip from ${sender.firstName} to ${receiverNames}`,
         metadata: {
           tipId: tip.id,
           senderId,
-          receiverId,
-          platformFee: platformFee.toString(),
-          netAmount: netAmount.toString(),
+          receiverIds: receiverIds.join(","),
         },
+        expand: ["latest_charge.balance_transaction"],
       });
 
       stripePaymentIntentId = paymentIntent.id;
-      stripeChargeId =
+      const latestCharge =
         typeof paymentIntent.latest_charge === "string"
-          ? paymentIntent.latest_charge
-          : paymentIntent.latest_charge?.id;
+          ? undefined
+          : paymentIntent.latest_charge;
+      stripeChargeId = latestCharge?.id ?? (paymentIntent.latest_charge as string | undefined);
+      stripeFeeCents = getBalanceTransactionFeeCents(latestCharge);
 
       if (paymentIntent.status !== "succeeded") {
         throw new ApiError(
@@ -143,23 +234,24 @@ const sendTip = async (
         payment_method: walletToken,
         confirm: true,
         automatic_payment_methods: { enabled: true },
-        description: `Tip from ${sender.firstName} ${sender.lastName} to ${receiver.firstName}`,
+        description: `Tip from ${sender.firstName} ${sender.lastName} to ${receiverNames}`,
         metadata: {
           tipId: tip.id,
           senderId,
-          receiverId,
-          platformFee: platformFee.toString(),
-          netAmount: netAmount.toString(),
+          receiverIds: receiverIds.join(","),
           paymentType: paymentMethod.type,
         },
+        expand: ["latest_charge.balance_transaction"],
       });
 
       stripePaymentIntentId = paymentIntent.id;
       applePayTransactionId = paymentIntent.id;
-      stripeChargeId =
+      const latestCharge =
         typeof paymentIntent.latest_charge === "string"
-          ? paymentIntent.latest_charge
-          : paymentIntent.latest_charge?.id;
+          ? undefined
+          : paymentIntent.latest_charge;
+      stripeChargeId = latestCharge?.id ?? (paymentIntent.latest_charge as string | undefined);
+      stripeFeeCents = getBalanceTransactionFeeCents(latestCharge);
 
       if (paymentIntent.status !== "succeeded") {
         throw new ApiError(
@@ -170,6 +262,20 @@ const sendTip = async (
     }
 
     // ── Payment succeeded ─────────────────────────
+    // Split the ACTUAL Stripe fee (pulled from the balance transaction)
+    // proportionally across recipients based on their gross share.
+    const stripeFee = stripeFeeCents / 100;
+    const netAmount = totalAmount - stripeFee;
+
+    const feeSharesCents = distributeFeeProportionally(
+      recipients.map((r) => r.amount),
+      stripeFeeCents,
+    );
+    const recipientsWithNet = recipients.map((r, i) => ({
+      ...r,
+      netAmount: r.amount - feeSharesCents[i] / 100,
+    }));
+
     const [updatedTip, transaction] = await prisma.$transaction(async (tx) => {
       const updatedTip = await tx.tip.update({
         where: { id: tip.id },
@@ -183,51 +289,72 @@ const sendTip = async (
           stripePaymentIntentId,
           stripeChargeId,
           applePayTransactionId,
-          applicationFeeAmount: platformFee,
-          amount,
-          platformFee,
+          amount: totalAmount,
+          stripeFee,
           netAmount,
           currency,
           status: TransactionStatus.COMPLETED,
         },
       });
 
-      await tx.wallet.upsert({
-        where: { userId: receiverId },
-        create: {
-          userId: receiverId,
-          currency,
-          totalEarned: netAmount,
-          availableBalance: netAmount,
-          totalWithdrawn: 0,
-          pendingBalance: 0,
-        },
-        update: {
-          totalEarned: { increment: netAmount },
-          availableBalance: { increment: netAmount },
-        },
-      });
+      // Credit each receiver's wallet with their net share
+      // (gross equal share minus their proportional cut of the real Stripe fee)
+      for (const r of recipientsWithNet) {
+        await tx.tipRecipient.updateMany({
+          where: { tipId: tip.id, receiverId: r.receiverId },
+          data: { status: TipStatus.COMPLETED, netAmount: r.netAmount },
+        });
+
+        await tx.wallet.upsert({
+          where: { userId: r.receiverId },
+          create: {
+            userId: r.receiverId,
+            currency,
+            totalEarned: r.netAmount,
+            availableBalance: r.netAmount,
+            totalWithdrawn: 0,
+         
+          },
+          update: {
+            totalEarned: { increment: r.netAmount },
+            availableBalance: { increment: r.netAmount },
+          },
+        });
+      }
 
       return [updatedTip, transaction];
     });
 
-    const formattedAmount = `$${amount.toFixed(2)}`;
-    await Promise.allSettled([
-      NotificationServices.SendNotification({
-        userId: receiverId,
+    // ── Notifications ──────────────────────────────
+    // Recipients are told their net (post-Stripe-fee) credited amount,
+    // since that's what actually landed in their wallet.
+    const notifications = recipientsWithNet.map((r) => {
+      const receiver = receiverMap.get(r.receiverId)!;
+      const formattedShare = `$${r.netAmount.toFixed(2)}`;
+      return NotificationServices.SendNotification({
+        userId: r.receiverId,
         title: "You received a tip! 🎉",
-        body: `${sender.firstName} ${sender.lastName} sent you ${formattedAmount}${message ? ` — "${message}"` : ""}`,
+        body: `${sender.firstName} ${sender.lastName} sent you ${formattedShare}${message ? ` — "${message}"` : ""}`,
         type: "TIP_RECEIVED",
-        data: { tipId: tip.id, senderId, amount: amount.toString() },
-      }),
+        data: { tipId: tip.id, senderId, amount: r.netAmount.toString() },
+      });
+    });
+
+    const formattedTotal = `$${totalAmount.toFixed(2)}`;
+    notifications.push(
       NotificationServices.SendNotification({
         userId: senderId,
         title: "Tip sent successfully!",
-        body: `Your ${formattedAmount} tip to ${receiver.firstName} ${receiver.lastName} was sent.`,
+        body:
+          recipients.length > 1
+            ? `Your ${formattedTotal} tip was split between ${receiverNames}.`
+            : `Your ${formattedTotal} tip to ${receiverNames} was sent.`,
         type: "TIP_SENT",
-        data: { tipId: tip.id, receiverId, amount: amount.toString() },
+        data: { tipId: tip.id, receiverIds: receiverIds.join(","), amount: totalAmount.toString() },
       }),
-    ]);
+    );
+
+    await Promise.allSettled(notifications);
 
     return { tip: updatedTip, transaction };
   } catch (error: any) {
@@ -257,14 +384,16 @@ const sendTip = async (
         where: { id: tip.id },
         data: { status: TipStatus.FAILED },
       }),
+      prisma.tipRecipient.updateMany({
+        where: { tipId: tip.id },
+        data: { status: TipStatus.FAILED },
+      }),
       prisma.transaction.create({
         data: {
           tipId: tip.id,
           paymentMethodId: paymentMethod.id,
           stripePaymentIntentId,
-          amount,
-          platformFee,
-          netAmount,
+          amount: totalAmount,
           currency,
           status: TransactionStatus.FAILED,
           failureReason,
@@ -294,7 +423,7 @@ const sendTip = async (
   }
 };
 
-// ── Get my sent tips (paginated) ──────────────────────
+// ── Get my tips (sent + received, paginated) ──────────
 
 const getMySentTips = async (
   userId: string,
@@ -306,7 +435,7 @@ const getMySentTips = async (
     .rawFilter({
       OR: [
         { senderId: userId },
-        { receiverId: userId },
+        { recipients: { some: { receiverId: userId } } },
       ],
     })
     .sort()
@@ -323,17 +452,22 @@ const getMySentTips = async (
           photo: true,
         },
       },
-      receiver: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          fullName: true,
-          email: true,
-          phone: true,
-          photo: true,
+      recipients: {
+        include: {
+          receiver: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              fullName: true,
+              email: true,
+              phone: true,
+              photo: true,
+            },
+          },
         },
       },
+      transaction: true,
     })
     .execute();
 
