@@ -12,7 +12,10 @@ import { env } from "../../../config/env.config";
 
 const getMe = async (userId: string) => {
   const user = await prisma.user.findFirst({
-    where: { id: userId, isDeleted: false },
+    where: {
+      id: userId,
+      isDeleted: false,
+    },
     select: {
       id: true,
       firstName: true,
@@ -41,6 +44,9 @@ const getMe = async (userId: string) => {
           id: true,
           type: true,
           brand: true,
+          last4: true,
+          expMonth: true,
+          expYear: true,
           walletType: true,
           displayName: true,
         },
@@ -53,9 +59,11 @@ const getMe = async (userId: string) => {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
   }
 
-  // ── Current month date range ───────────────────────────────────
+  // Current Month
   const now = new Date();
+
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
   const endOfMonth = new Date(
     now.getFullYear(),
     now.getMonth() + 1,
@@ -63,139 +71,182 @@ const getMe = async (userId: string) => {
     23,
     59,
     59,
-    999,
+    999
   );
 
-  // ── All tip stats in parallel ──────────────────────────────────
   const [
     totalSentStats,
     totalReceivedStats,
     currentMonthSentStats,
     currentMonthReceivedStats,
   ] = await Promise.all([
-    // Overall sent — count + amount
-    prisma.tip.aggregate({
-      where: { senderId: userId, status: "COMPLETED" },
-      _count: { id: true },
-      _sum: { amount: true },
-    }),
-    // Overall received — count + amount
-    prisma.tip.aggregate({
-      where: { receiverId: userId, status: "COMPLETED" },
-      _count: { id: true },
-      _sum: { amount: true },
-    }),
-    // Current month sent — count + amount
+    // Total Sent
     prisma.tip.aggregate({
       where: {
         senderId: userId,
         status: "COMPLETED",
-        createdAt: { gte: startOfMonth, lte: endOfMonth },
       },
-      _count: { id: true },
-      _sum: { amount: true },
+      _count: {
+        id: true,
+      },
+      _sum: {
+        totalAmount: true,
+      },
     }),
-    // Current month received — count + amount
-    prisma.tip.aggregate({
+
+    // Total Received
+    prisma.tipRecipient.aggregate({
       where: {
         receiverId: userId,
         status: "COMPLETED",
-        createdAt: { gte: startOfMonth, lte: endOfMonth },
       },
-      _count: { id: true },
-      _sum: { amount: true },
+      _count: {
+        id: true,
+      },
+      _sum: {
+        amount: true,
+        netAmount: true,
+      },
+    }),
+
+    // Current Month Sent
+    prisma.tip.aggregate({
+      where: {
+        senderId: userId,
+        status: "COMPLETED",
+        createdAt: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+      _count: {
+        id: true,
+      },
+      _sum: {
+        totalAmount: true,
+      },
+    }),
+
+    // Current Month Received
+    prisma.tipRecipient.aggregate({
+      where: {
+        receiverId: userId,
+        status: "COMPLETED",
+        createdAt: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+      _count: {
+        id: true,
+      },
+      _sum: {
+        amount: true,
+        netAmount: true,
+      },
     }),
   ]);
 
-  let stripeAccountDetails: any = null;
+  let stripeAccount: any = null;
 
   if (user.stripeAccountId) {
     try {
-      const [account, externalAccounts, cards, balance] = await Promise.all([
+      const [account, bankAccounts, cards, balance] = await Promise.all([
         stripe.accounts.retrieve(user.stripeAccountId),
+
         stripe.accounts.listExternalAccounts(user.stripeAccountId, {
           object: "bank_account",
           limit: 10,
         }),
+
         stripe.accounts.listExternalAccounts(user.stripeAccountId, {
           object: "card",
           limit: 10,
         }),
+
         stripe.balance.retrieve({
           stripeAccount: user.stripeAccountId,
         }),
       ]);
 
-      const availableBalance = balance.available.map((b) => ({
-        amount: b.amount / 100,
-        currency: b.currency,
-      }));
-
-      const pendingBalance = balance.pending.map((b) => ({
-        amount: b.amount / 100,
-        currency: b.currency,
-      }));
-
-      stripeAccountDetails = {
+      stripeAccount = {
         id: account.id,
+        email: account.email,
+        country: account.country,
+        businessType: account.business_type,
+
         detailsSubmitted: account.details_submitted,
         chargesEnabled: account.charges_enabled,
         payoutsEnabled: account.payouts_enabled,
-        businessType: account.business_type,
-        country: account.country,
-        email: account.email,
+
         balance: {
-          available: availableBalance,
-          pending: pendingBalance,
+          available: balance.available.map((item) => ({
+            amount: item.amount / 100,
+            currency: item.currency,
+          })),
+
+          pending: balance.pending.map((item) => ({
+            amount: item.amount / 100,
+            currency: item.currency,
+          })),
         },
-        bankAccounts: externalAccounts.data.map((b: any) => ({
-          id: b.id,
-          bankName: b.bank_name,
-          last4: b.last4,
-          currency: b.currency,
-          country: b.country,
-          defaultForCurrency: b.default_for_currency,
+
+        bankAccounts: bankAccounts.data.map((bank: any) => ({
+          id: bank.id,
+          bankName: bank.bank_name,
+          last4: bank.last4,
+          country: bank.country,
+          currency: bank.currency,
+          defaultForCurrency: bank.default_for_currency,
         })),
-        cards: cards.data.map((c: any) => ({
-          id: c.id,
-          brand: c.brand,
-          last4: c.last4,
-          expMonth: c.exp_month,
-          expYear: c.exp_year,
-          currency: c.currency,
-          country: c.country,
+
+        cards: cards.data.map((card: any) => ({
+          id: card.id,
+          brand: card.brand,
+          last4: card.last4,
+          expMonth: card.exp_month,
+          expYear: card.exp_year,
+          country: card.country,
+          currency: card.currency,
         })),
       };
-    } catch (err) {
-      console.error("Stripe fetch error:", err);
+    } catch (error) {
+      console.error("Stripe fetch error:", error);
     }
   }
 
   return {
     ...user,
+
     tipStats: {
       sent: {
         total: {
           count: totalSentStats._count.id,
-          amount: totalSentStats._sum.amount ?? 0,
+          amount: totalSentStats._sum.totalAmount ?? 0,
         },
+
         currentMonth: {
           count: currentMonthSentStats._count.id,
-          amount: currentMonthSentStats._sum.amount ?? 0,
+          amount: currentMonthSentStats._sum.totalAmount ?? 0,
         },
       },
+
       received: {
         total: {
           count: totalReceivedStats._count.id,
-          amount: totalReceivedStats._sum.amount ?? 0,
+          grossAmount: totalReceivedStats._sum.amount ?? 0,
+          netAmount: totalReceivedStats._sum.netAmount ?? 0,
         },
+
         currentMonth: {
           count: currentMonthReceivedStats._count.id,
-          amount: currentMonthReceivedStats._sum.amount ?? 0,
+          grossAmount: currentMonthReceivedStats._sum.amount ?? 0,
+          netAmount: currentMonthReceivedStats._sum.netAmount ?? 0,
         },
       },
     },
-    stripeAccount: stripeAccountDetails,
+
+    stripeAccount,
   };
 };
 const getSingleUserDetails = async (userId: string) => {

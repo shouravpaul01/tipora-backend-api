@@ -48,25 +48,25 @@ const getMyWithdrawHistory = catchAsync(async (req: Request, res: Response) => {
 // GET /api/v1/withdraw/admin/all
 // ═════════════════════════════════════════════════════════════════════════════
 
-const getAllWithdrawRequests = catchAsync(
-  async (req: Request, res: Response) => {
-    const result = await WithdrawServices.getAllWithdrawRequests(req.query);
+// const getAllWithdrawRequests = catchAsync(
+//   async (req: Request, res: Response) => {
+//     const result = await WithdrawServices.get(req.query);
 
-    sendResponse(res, {
-      statusCode: httpStatus.OK,
-      success: true,
-      message: "Withdraw requests retrieved successfully.",
-      data: result.data,
-      meta: result.meta,
-    });
-  },
-);
+//     sendResponse(res, {
+//       statusCode: httpStatus.OK,
+//       success: true,
+//       message: "Withdraw requests retrieved successfully.",
+//       data: result.data,
+//       meta: result.meta,
+//     });
+//   },
+// );
 
 export const WithdrawControllers = {
   requestWithdraw,
 
   getMyWithdrawHistory,
-  getAllWithdrawRequests,
+
 };
 
  

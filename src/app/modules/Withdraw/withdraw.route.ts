@@ -26,10 +26,10 @@ router.post(
 // ── Admin Routes ──────────────────────────────────────────────────────────────
 
 // Get all withdraw requests across all users — query handled by QueryBuilder
-router.get(
-  "/admin/all",
-  auth(UserRole.ADMIN),
-  WithdrawControllers.getAllWithdrawRequests,
-);
+// router.get(
+//   "/admin/all",
+//   auth(UserRole.ADMIN),
+//   WithdrawControllers.getAllWithdrawRequests,
+// );
 
 export const WithdrawRoutes = router;
