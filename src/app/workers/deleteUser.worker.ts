@@ -17,16 +17,43 @@ const processDeleteUser = async (job: Job<DeleteUserJobData>) => {
 
   if (!user) return { skipped: true, userId };
 
+  // Tips this user sent (needed to clean up their recipient rows + platform revenue refs)
+  const sentTips = await prisma.tip.findMany({
+    where: { senderId: userId },
+    select: { id: true },
+  });
+  const sentTipIds = sentTips.map((t) => t.id);
+
+  const withdrawTransections = await prisma.withdrawTransection.findMany({
+    where: { userId },
+    select: { id: true },
+  });
+  const withdrawIds = withdrawTransections.map((w) => w.id);
+
   await prisma.$transaction([
     prisma.notification.deleteMany({ where: { userId } }),
-    prisma.withdrawRequest.deleteMany({ where: { userId } }),
+
+    // Platform revenue rows referencing this user's withdraws (loose reference, not a real FK)
+    prisma.platformRevenue.deleteMany({
+      where: { referenceId: { in: withdrawIds } },
+    }),
+
+    prisma.withdrawTransection.deleteMany({ where: { userId } }),
     prisma.wallet.deleteMany({ where: { userId } }),
+
+    // Tip recipient rows where this user was a RECEIVER of someone else's tip
+    prisma.tipRecipient.deleteMany({ where: { receiverId: userId } }),
+
+    // Tip recipient rows belonging to tips THIS user sent (must go before deleting the Tip)
+    prisma.tipRecipient.deleteMany({
+      where: { tipId: { in: sentTipIds } },
+    }),
+
     prisma.transaction.deleteMany({
       where: { tip: { senderId: userId } },
     }),
-    prisma.tip.deleteMany({
-      where: { OR: [{ senderId: userId }, { receiverId: userId }] },
-    }),
+    prisma.tip.deleteMany({ where: { senderId: userId } }),
+
     prisma.paymentMethod.deleteMany({ where: { userId } }),
     prisma.userAuth.deleteMany({ where: { userId } }),
     prisma.user.delete({ where: { id: userId } }),

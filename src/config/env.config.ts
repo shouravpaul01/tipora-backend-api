@@ -49,11 +49,12 @@ const envSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().nonempty("TWILIO_ACCOUNT_SID is required."),
   TWILIO_AUTH_TOKEN: z.string().nonempty("TWILIO_AUTH_TOKEN is required."),
   TWILIO_SENDER_PHONE: z.string().nonempty("TWILIO_SENDER_PHONE is required."),
-  // DigitalOcean S3
-  // DO_SPACE_ENDPOINT: z.string().url("DO_SPACE_ENDPOINT must be a valid URL"),
-  // DO_SPACE_ACCESS_KEY: z.string().min(1, "DO_SPACE_ACCESS_KEY is required"),
-  // DO_SPACE_SECRET_KEY: z.string().min(1, "DO_SPACE_SECRET_KEY is required"),
-  // DO_SPACE_BUCKET: z.string().min(1, "DO_SPACE_BUCKET is required"),
+  // Firebase (FCM push notifications)
+  // FIREBASE_PROJECT_ID: z.string().min(1, "FIREBASE_PROJECT_ID is required"),
+  // FIREBASE_CLIENT_EMAIL: z
+  //   .string()
+  //   .email("FIREBASE_CLIENT_EMAIL must be a valid email address"),
+  // FIREBASE_PRIVATE_KEY: z.string().min(1, "FIREBASE_PRIVATE_KEY is required"),
 });
 
 const validateEnv = envSchema.safeParse(process.env);

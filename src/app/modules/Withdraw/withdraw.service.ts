@@ -265,6 +265,9 @@ const confirmInstantWithdraw = async (
   payout: Stripe.Payout,
   connectedAccountId: string,
 ) => {
+  console.log("confirmInstantWithdraw called");
+console.log("Payout ID:", payout.id);
+console.log("Connected Account:", connectedAccountId);
   const withdrawTransection = await prisma.withdrawTransection.findFirst({
     where: { stripePayoutId: payout.id, status: WithdrawStatus.PROCESSING },
   });
