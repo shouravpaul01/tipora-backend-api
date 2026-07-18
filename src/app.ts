@@ -5,9 +5,11 @@ import cookieParser from "cookie-parser";
 import path from "path";
 import bodyParser from "body-parser";
 import router from "./app/routes";
+import helmet from "helmet";
 import GlobalErrorHandler from "./app/middlewares/globalErrorHandler";
 import { AppBodyTemplate } from "./utils/BodyTemplate";
 import morgan from "morgan";
+import compression from "compression"
 import { rateLimit } from "express-rate-limit";
 import ApiError from "./errors/ApiErrors";
 import { stripeWebhookHandler } from "./webhook/stripe.webhook";
@@ -41,9 +43,41 @@ const limiterOptions = {
     );
   },
 };
+const helmetOptions={
+    crossOriginResourcePolicy: false,
+
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+
+        scriptSrc: [
+          "'self'",
+          "https://js.stripe.com",
+        ],
+
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https:",
+        ],
+
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https:",
+        ],
+
+        connectSrc: [
+          "'self'",
+          "https://api.stripe.com",
+        ],
+      },
+    },
+  }
+app.use(helmet(helmetOptions));
 // Middleware setup
 app.use(cors(corsOptions));
-
+app.use(compression());
 app.post(
   "/webhook",
   express.raw({ type: "application/json" }),

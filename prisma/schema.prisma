@@ -17,7 +17,7 @@ model User {
   lastName  String
   fullName  String?
   email     String?
-  phone     String @unique
+  phone     String  @unique
   photo     String?
   bio       String?
   fcmToken  String?
@@ -35,14 +35,18 @@ model User {
   stripeAccountVerified Boolean @default(false) // Indicates if Connect account is fully verified
 
   // ── Relations ─────────────────────────────────
-  auth             UserAuth?
-  paymentMethods   PaymentMethod[]
-  sentTips         Tip[]              @relation("SentTips")
-  receivedTips     TipRecipient[]     @relation("ReceivedTips") // tip can be split, so relation moved to TipRecipient
-  notifications    Notification[]
-  wallet           Wallet?
+  auth                 UserAuth?
+  paymentMethods       PaymentMethod[]
+  sentTips             Tip[]                 @relation("SentTips")
+  receivedTips         TipRecipient[]        @relation("ReceivedTips") // tip can be split, so relation moved to TipRecipient
+  notifications        Notification[]
+  wallet               Wallet?
   withdrawTransections WithdrawTransection[]
 
+  // ── Support Ticket Relations ───────────────────
+  raisedTickets   Support[]       @relation("RaisedTickets")
+  assignedTickets Support[]       @relation("AssignedTickets") // tickets this user (admin/agent) is handling
+  ticketMessages  TicketMessage[] @relation("TicketMessagesSent")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -236,7 +240,6 @@ model Wallet {
   totalWithdrawn   Float @default(0) // Lifetime total successfully withdrawn (net, after any fee)
   availableBalance Float @default(0) // Amount the user can currently withdraw
 
-
   currency String @default("usd")
 
   withdrawTransections WithdrawTransection[]
@@ -271,8 +274,8 @@ model WithdrawTransection {
   type WithdrawType @default(STANDARD) // INSTANT | STANDARD
 
   amount      Float // Amount requested from wallet balance
-  platformFee Float @default(0) // Our 3% fee if INSTANT, else 0 — this is what WE charge the user
-  stripeFee   Float @default(0) // Stripe's own real instant-payout fee (pulled from the balance transaction), separate from our platformFee
+  platformFee Float  @default(0) // Our 3% fee if INSTANT, else 0 — this is what WE charge the user
+  stripeFee   Float  @default(0) // Stripe's own real instant-payout fee (pulled from the balance transaction), separate from our platformFee
   netAmount   Float // amount - platformFee -> actually transferred to user
   currency    String @default("usd")
 
@@ -315,9 +318,6 @@ model Notification {
   @@map("notifications")
 }
 
-
-
-
 // ═══════════════════════════════════════════════
 // PLATFORM REVENUE MODEL
 // Ledger of platform earnings. Since tips no longer
@@ -336,7 +336,7 @@ model PlatformRevenue {
   currency String @default("usd")
 
   // ── Reference to the record that generated this revenue ──
-  referenceId   String @db.ObjectId  @unique // e.g. WithdrawRequest id
+  referenceId   String @unique @db.ObjectId // e.g. WithdrawRequest id
   referenceType String @default("WithdrawRequest")
 
   createdAt DateTime @default(now())
@@ -344,6 +344,110 @@ model PlatformRevenue {
   @@index([source])
   @@index([createdAt])
   @@map("platform_revenues")
+}
+
+// ═══════════════════════════════════════════════
+// SUPPORT TICKET MODEL
+// Core ticket record raised by a user (sender or
+// receiver) for any issue — payment, withdrawal,
+// tip, account, technical, etc. Optionally linked
+// to the related Tip/Withdraw for context, assigned
+// to an admin/agent (User with role ADMIN), and
+// threaded via TicketMessage. Denormalized
+// lastMessageAt/lastMessageBy keep the support
+// inbox fast to sort/filter without joining messages.
+// ═══════════════════════════════════════════════
+
+model Support {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  ticketNumber String            @unique // human-readable, e.g. "TKT-100234" (generate in app layer)
+  creatorType  TicketCreatorType @default(USER)
+  // ── Raised By ──────────────────────────────────
+  userId       String?           @db.ObjectId
+  user         User?             @relation("RaisedTickets", fields: [userId], references: [id])
+  // ── Guest Contact Info ─────────────────────────
+  // Populated only when userId is null. At least guestName + one of
+  // guestEmail/guestPhone is required — enforced in the app layer since
+  // Prisma has no conditional-required-field support.
+  guestName    String?
+  guestEmail   String?
+  guestPhone   String?
+  // ── Assigned Support Agent / Admin ────────────
+  assignedToId String?           @db.ObjectId
+  assignedTo   User?             @relation("AssignedTickets", fields: [assignedToId], references: [id])
+
+  subject     String
+  description String
+
+  category TicketCategory @default(OTHER)
+  priority TicketPriority @default(MEDIUM)
+  status   TicketStatus   @default(OPEN)
+
+  // ── Optional Context Links ─────────────────────
+  // Kept as plain ObjectId refs (not @relation) so a ticket
+  // can point at a Tip / WithdrawTransection / Transaction
+  // without forcing a back-relation array on those models.
+  relatedTipId         String? @db.ObjectId
+  relatedWithdrawId    String? @db.ObjectId
+  relatedTransactionId String? @db.ObjectId
+
+  attachments String[] @default([]) // uploaded screenshot/file URLs on the initial ticket
+
+  // ── Resolution Tracking ────────────────────────
+  resolvedAt DateTime?
+  closedAt   DateTime?
+  reopenedAt DateTime?
+
+  // ── Post-resolution Feedback (CSAT) ───────────
+  rating        Int? // 1-5, given by the ticket raiser after resolution
+  ratingComment String?
+
+  // ── Denormalized for fast inbox sorting ────────
+  lastMessageAt   DateTime @default(now())
+  lastMessageById String?  @db.ObjectId
+  unreadByUser    Boolean  @default(false) // true if agent replied and user hasn't seen it
+  unreadByAgent   Boolean  @default(true) // true if user replied/created and agent hasn't seen it
+
+  messages TicketMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([priority])
+  @@index([category])
+  @@index([lastMessageAt])
+  @@map("support_tickets")
+}
+
+// ═══════════════════════════════════════════════
+// TICKET MESSAGE MODEL
+// Threaded conversation on a ticket. Both the user
+// and support agents/admins post here. isInternalNote
+// lets agents leave internal notes visible only to
+// other admins (never shown to the end user).
+// ═══════════════════════════════════════════════
+
+model TicketMessage {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  ticketId String  @db.ObjectId
+  ticket   Support @relation(fields: [ticketId], references: [id])
+
+  senderId String @db.ObjectId
+  sender   User   @relation("TicketMessagesSent", fields: [senderId], references: [id])
+
+  message     String
+  attachments String[] @default([])
+
+  isInternalNote Boolean @default(false) // true = admin-only note, hidden from the ticket raiser
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([senderId])
+  @@map("ticket_messages")
 }
 
 // ═══════════════════════════════════════════════
@@ -404,8 +508,46 @@ enum NotificationType {
   WITHDRAW_FAILED
   GENERAL
   PLATFORM_FEE_EARNED
+  TICKET_CREATED
+  TICKET_REPLIED
+  TICKET_ASSIGNED
+  TICKET_RESOLVED
+  TICKET_CLOSED
+  TICKET_REOPENED
 }
 
 enum RevenueSource {
   WITHDRAW_FEE
+}
+
+enum TicketCategory {
+  PAYMENT_ISSUE
+  WITHDRAWAL_ISSUE
+  TIP_ISSUE
+  ACCOUNT_ISSUE
+  VERIFICATION_ISSUE
+  TECHNICAL_ISSUE
+  FEEDBACK
+  OTHER
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN // Ticket created, not yet picked up
+  IN_PROGRESS // Agent is actively working on it
+  WAITING_ON_USER // Agent replied, waiting for user's response
+  RESOLVED // Agent marked resolved, awaiting user confirmation/rating
+  CLOSED // Fully closed, no further replies expected
+  REOPENED // User reopened a resolved/closed ticket
+}
+
+enum TicketCreatorType {
+  USER
+  GUEST
 }
