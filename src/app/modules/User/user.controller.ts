@@ -14,6 +14,31 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+const getAllUsers = catchAsync(async (req, res) => {
+  const result = await UserServices.getAllUsers(req.query);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Users retrieved successfully.",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+const updateStatus = catchAsync(async (req, res) => {
+  const result = await UserServices.updateStatus(
+    req.params.id as string,
+    req.body.status
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "User status updated successfully.",
+    data: result,
+  });
+});
 const getSingleUserDetails = catchAsync(async (req: Request, res: Response) => {
   const result = await UserServices.getSingleUserDetails(req.params.id as string);
   sendResponse(res, {
@@ -67,6 +92,8 @@ const updateOnboardingStatus = catchAsync(async (req: Request, res: Response) =>
 });
 export const UserController = {
   getMe,
+    getAllUsers,
+  updateStatus,
   getSingleUserDetails,
   updateMe,
   deleteMe,

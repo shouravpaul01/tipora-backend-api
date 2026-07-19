@@ -21,6 +21,7 @@ export const initiateSuperAdmin = async () => {
       email: "admin@example.com",
       phone: "+8801863272200",
       role: "ADMIN",
+      isPhoneVerified:true,
       auth: {
         create: {
           password: hashedPassword,

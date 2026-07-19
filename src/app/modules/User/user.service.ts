@@ -7,6 +7,8 @@ import Stripe from "stripe";
 import ApiError from "../../../errors/ApiErrors";
 import { deleteUserQueue } from "./user.queue";
 import { env } from "../../../config/env.config";
+import QueryBuilder from "../../../helpers/queryBuilder";
+import { UserRole, UserStatus } from "@prisma/client";
 
 // ── get my profile ────────────────────────────────────
 
@@ -71,7 +73,7 @@ const getMe = async (userId: string) => {
     23,
     59,
     59,
-    999
+    999,
   );
 
   const [
@@ -249,6 +251,47 @@ const getMe = async (userId: string) => {
     stripeAccount,
   };
 };
+const getAllUsers = async (query: Record<string, unknown>) => {
+  const queryBuilder = new QueryBuilder(prisma.user, query)
+    .search(["firstName", "lastName", "fullName", "email", "phone"])
+    .rawFilter({
+      role: UserRole.USER,
+    })
+    .filter()
+    .sort()
+    .paginate()
+    .fields({
+      id: true,
+      firstName: true,
+      lastName: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      photo: true,
+      status: true,
+      isEmailVerified: true,
+      isPhoneVerified: true,
+      createdAt: true,
+    })
+    .include({
+      auth: {
+        select: {
+          lastLoginAt: true,
+        },
+      },
+      wallet: true,
+    });
+
+  const [data, meta] = await Promise.all([
+    queryBuilder.execute(),
+    queryBuilder.countTotal(),
+  ]);
+
+  return {
+    meta,
+    data,
+  };
+};
 const getSingleUserDetails = async (userId: string) => {
   const user = await prisma.user.findFirst({
     where: { id: userId, isDeleted: false },
@@ -333,7 +376,25 @@ const updateMe = async (
   return updated;
 };
 // ── delete my account ─────────────────────────────────
-
+const updateStatus = async (id: string, status: UserStatus) => {
+  return prisma.user.update({
+    where: {
+      id,
+    },
+    data: {
+      status,
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      status: true,
+    },
+  });
+};
 const deleteMe = async (userId: string, res: any) => {
   const timestamp = Date.now();
   const user = await prisma.user.findUnique({
@@ -415,7 +476,10 @@ const createOnboardingLink = async (userId: string) => {
 
 // ── check onboarding status ─────────────────────────
 
-const updateOnboardingStatus = async (userId: string | null, account: Stripe.Account | null) => {
+const updateOnboardingStatus = async (
+  userId: string | null,
+  account: Stripe.Account | null,
+) => {
   console.log("account", account);
 
   let stripeAccount = account;
@@ -428,7 +492,10 @@ const updateOnboardingStatus = async (userId: string | null, account: Stripe.Acc
     });
 
     if (!user?.stripeAccountId) {
-      throw new ApiError(httpStatus.BAD_REQUEST, "Stripe account not found for this user.");
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Stripe account not found for this user.",
+      );
     }
 
     // Stripe থেকে live account data আনো
@@ -462,8 +529,11 @@ const updateOnboardingStatus = async (userId: string | null, account: Stripe.Acc
 
 export const UserServices = {
   getMe,
+  getAllUsers,
+
   getSingleUserDetails,
   updateMe,
+  updateStatus,
   deleteMe,
   createOnboardingLink,
   updateOnboardingStatus,

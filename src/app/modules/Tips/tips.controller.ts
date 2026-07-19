@@ -27,8 +27,30 @@ const getMySentTips = catchAsync(async (req: Request, res: Response) => {
     meta: result.meta,
   });
 });
+const getAllTips = catchAsync(async (req, res) => {
+  const result = await TipServices.getAllTips(req.query);
 
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Tips retrieved successfully",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+const getSingleTip = catchAsync(async (req, res) => {
+  const result = await TipServices.getSingleTip(req.params.id as string);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Tip retrieved successfully",
+    data: result,
+  });
+});
 export const TipController = {
   sendTip,
   getMySentTips,
+  getAllTips,
+  getSingleTip
 };

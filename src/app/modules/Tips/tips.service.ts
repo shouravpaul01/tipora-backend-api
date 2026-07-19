@@ -5,7 +5,7 @@ import httpStatus from "http-status";
 import prisma from "../../../shared/prisma";
 import ApiError from "../../../errors/ApiErrors";
 import { env } from "../../../config/env.config";
-import { PaymentType, TipStatus, TransactionStatus } from "@prisma/client";
+import { PaymentType, Prisma, TipStatus, TransactionStatus } from "@prisma/client";
 import { NotificationServices } from "../Notification/notification.service";
 import QueryBuilder from "../../../helpers/queryBuilder";
 import { getStripeErrorMessage } from "./tips.utils";
@@ -98,16 +98,25 @@ const sendTip = async (senderId: string, payload: SendTipPayload) => {
   const { receiverIds, totalAmount, message, walletToken } = payload;
 
   if (!receiverIds || receiverIds.length === 0) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "At least one receiver is required.");
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "At least one receiver is required.",
+    );
   }
   if (!totalAmount || totalAmount <= 0) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "A valid total amount is required.");
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "A valid total amount is required.",
+    );
   }
 
   // ── Validate receivers ─────────────────────────────
   const uniqueReceiverIds = new Set(receiverIds);
   if (uniqueReceiverIds.size !== receiverIds.length) {
-    throw new ApiError(httpStatus.BAD_REQUEST, "Duplicate receivers are not allowed.");
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Duplicate receivers are not allowed.",
+    );
   }
   if (receiverIds.includes(senderId)) {
     throw new ApiError(httpStatus.BAD_REQUEST, "You cannot tip yourself.");
@@ -121,7 +130,10 @@ const sendTip = async (senderId: string, payload: SendTipPayload) => {
     select: { id: true, firstName: true, lastName: true },
   });
   if (receivers.length !== receiverIds.length) {
-    throw new ApiError(httpStatus.NOT_FOUND, "One or more receivers not found.");
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      "One or more receivers not found.",
+    );
   }
   const receiverMap = new Map(receivers.map((r) => [r.id, r]));
 
@@ -210,7 +222,8 @@ const sendTip = async (senderId: string, payload: SendTipPayload) => {
         typeof paymentIntent.latest_charge === "string"
           ? undefined
           : paymentIntent.latest_charge;
-      stripeChargeId = latestCharge?.id ?? (paymentIntent.latest_charge as string | undefined);
+      stripeChargeId =
+        latestCharge?.id ?? (paymentIntent.latest_charge as string | undefined);
       stripeFeeCents = getBalanceTransactionFeeCents(latestCharge);
 
       if (paymentIntent.status !== "succeeded") {
@@ -250,7 +263,8 @@ const sendTip = async (senderId: string, payload: SendTipPayload) => {
         typeof paymentIntent.latest_charge === "string"
           ? undefined
           : paymentIntent.latest_charge;
-      stripeChargeId = latestCharge?.id ?? (paymentIntent.latest_charge as string | undefined);
+      stripeChargeId =
+        latestCharge?.id ?? (paymentIntent.latest_charge as string | undefined);
       stripeFeeCents = getBalanceTransactionFeeCents(latestCharge);
 
       if (paymentIntent.status !== "succeeded") {
@@ -313,7 +327,6 @@ const sendTip = async (senderId: string, payload: SendTipPayload) => {
             totalEarned: r.netAmount,
             availableBalance: r.netAmount,
             totalWithdrawn: 0,
-         
           },
           update: {
             totalEarned: { increment: r.netAmount },
@@ -350,7 +363,11 @@ const sendTip = async (senderId: string, payload: SendTipPayload) => {
             ? `Your ${formattedTotal} tip was split between ${receiverNames}.`
             : `Your ${formattedTotal} tip to ${receiverNames} was sent.`,
         type: "TIP_SENT",
-        data: { tipId: tip.id, receiverIds: receiverIds.join(","), amount: totalAmount.toString() },
+        data: {
+          tipId: tip.id,
+          receiverIds: receiverIds.join(","),
+          amount: totalAmount.toString(),
+        },
       }),
     );
 
@@ -475,8 +492,115 @@ const getMySentTips = async (
 
   return { data: tips, meta };
 };
+const getAllTips = async (query: Record<string, unknown>) => {
+  const { from, to } = query;
 
+  const filters: Prisma.TipWhereInput = {};
+
+  if (from || to) {
+    filters.createdAt = {};
+
+    if (from) {
+      filters.createdAt.gte = new Date(from as string);
+    }
+
+    if (to) {
+      const endDate = new Date(to as string);
+      endDate.setHours(23, 59, 59, 999);
+      filters.createdAt.lte = endDate;
+    }
+  }
+
+  const queryBuilder = new QueryBuilder(prisma.tip, query);
+
+  const tips = await queryBuilder
+    .search(["message"])
+    .rawFilter(filters)
+    .sort()
+    .paginate()
+    .include({
+      sender: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          photo: true,
+        },
+      },
+      recipients: {
+        include: {
+          receiver: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              fullName: true,
+              email: true,
+              phone: true,
+              photo: true,
+            },
+          },
+        },
+      },
+      transaction: true,
+    })
+    .execute();
+
+  const meta = await queryBuilder.countTotal();
+
+  return {
+    meta,
+    data: tips,
+  };
+};
+const getSingleTip = async (id: string) => {
+  const tip = await prisma.tip.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      sender: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          photo: true,
+        },
+      },
+      recipients: {
+        include: {
+          receiver: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              fullName: true,
+              email: true,
+              phone: true,
+              photo: true,
+            },
+          },
+        },
+      },
+      transaction: true,
+    },
+  });
+
+  if (!tip) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Tip not found");
+  }
+
+  return tip;
+};
 export const TipServices = {
   sendTip,
   getMySentTips,
+  getAllTips,
+  getSingleTip,
 };

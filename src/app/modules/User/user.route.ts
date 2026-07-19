@@ -1,34 +1,79 @@
-
-
 import { Router } from "express";
+import { UserRole } from "@prisma/client";
 
-import { UserController } from "./user.controller";
-import { UserValidation } from "./user.validation";
 import auth from "../../middlewares/auth";
 import validateRequest from "../../middlewares/validateRequest";
 import { fileUploader } from "../../middlewares/fileUploader";
 
+import { UserController } from "./user.controller";
+import { UserValidation } from "./user.validation";
+
 const router = Router();
-router.get("/details/:id",  UserController.getSingleUserDetails);
-router.get("/me", auth(), UserController.getMe);
+
+/**
+ * ======================================================
+ * Current Authenticated User
+ * ======================================================
+ */
+router.get(
+  "/me",
+  auth(),
+  UserController.getMe
+);
 
 router.patch(
   "/me",
   auth(),
   fileUploader.single("photo"),
   validateRequest(UserValidation.UpdateProfile),
-  UserController.updateMe,
+  UserController.updateMe
 );
 
-router.delete("/me", auth(), UserController.deleteMe);
+router.delete(
+  "/me",
+  auth(),
+  UserController.deleteMe
+);
+
+/**
+ * ======================================================
+ * User Onboarding
+ * ======================================================
+ */
 router.post(
-  "/onboarding",
+  "/me/onboarding",
   auth(),
-  UserController.startOnboarding,
+  UserController.startOnboarding
 );
+
 router.patch(
-  "/onboarding/status",
+  "/me/onboarding/status",
   auth(),
-  UserController.updateOnboardingStatus,
+  UserController.updateOnboardingStatus
 );
+
+/**
+ * ======================================================
+ * Admin User Management
+ * ======================================================
+ */
+router.get(
+  "/",
+  auth(UserRole.ADMIN),
+  UserController.getAllUsers
+);
+
+router.get(
+  "/:id",
+  auth(UserRole.ADMIN),
+  UserController.getSingleUserDetails
+);
+
+router.patch(
+  "/:id/status",
+  auth(UserRole.ADMIN),
+  validateRequest(UserValidation.updateStatus),
+  UserController.updateStatus
+);
+
 export const UserRoutes = router;

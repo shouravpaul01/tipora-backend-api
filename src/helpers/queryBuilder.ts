@@ -157,19 +157,26 @@ class QueryBuilder {
   }
 
   // Fields Selection
-  fields() {
-    const fields = (this.query.fields as string)?.split(",") || [];
-    if (fields.length > 0) {
-      this.prismaQuery.select = fields.reduce(
-        (acc: Record<string, boolean>, field) => {
-          acc[field] = true;
-          return acc;
-        },
-        {}
-      );
-    }
+  fields(select?: Record<string, boolean>) {
+  if (select) {
+    this.prismaQuery.select = select;
     return this;
   }
+
+  const fields = (this.query.fields as string)?.split(",") || [];
+
+  if (fields.length) {
+    this.prismaQuery.select = fields.reduce(
+      (acc: Record<string, boolean>, field) => {
+        acc[field] = true;
+        return acc;
+      },
+      {}
+    );
+  }
+
+  return this;
+}
 
   // **Include Related Models*/
   include(includableFields: Record<string, boolean | object>) {
