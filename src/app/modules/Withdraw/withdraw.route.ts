@@ -1,21 +1,19 @@
 import express from "express";
+import { UserRole } from "@prisma/client";
+
 import auth from "../../middlewares/auth";
 import validateRequest from "../../middlewares/validateRequest";
 
 import WithdrawValidations from "./withdraw.validation";
-import { UserRole } from "@prisma/client";
 import { WithdrawControllers } from "./withdraw.controller";
 
 const router = express.Router();
 
-// Get personal withdraw history — query handled by QueryBuilder
-router.get(
-  "/history",
-  auth(UserRole.USER),
-  WithdrawControllers.getMyWithdrawHistory,
-);
+// ─────────────────────────────────────────────────────────────
+// User Routes
+// ─────────────────────────────────────────────────────────────
 
-// Request a withdrawal — triggers Stripe Transfer immediately
+// Request a withdrawal
 router.post(
   "/",
   auth(UserRole.USER),
@@ -23,13 +21,29 @@ router.post(
   WithdrawControllers.requestWithdraw,
 );
 
-// ── Admin Routes ──────────────────────────────────────────────────────────────
+// Logged-in user's withdraw history
+router.get(
+  "/history",
+  auth(UserRole.USER),
+  WithdrawControllers.getMyWithdrawHistory,
+);
 
-// Get all withdraw requests across all users — query handled by QueryBuilder
-// router.get(
-//   "/admin/all",
-//   auth(UserRole.ADMIN),
-//   WithdrawControllers.getAllWithdrawRequests,
-// );
+// ─────────────────────────────────────────────────────────────
+// Admin Routes
+// ─────────────────────────────────────────────────────────────
+
+// Get all withdraw requests
+router.get(
+  "/",
+  auth(UserRole.ADMIN),
+  WithdrawControllers.getAllWithdraws,
+);
+
+// Get withdraw request details
+router.get(
+  "/:id",
+  auth(UserRole.ADMIN),
+  WithdrawControllers.getSingleWithdraw,
+);
 
 export const WithdrawRoutes = router;

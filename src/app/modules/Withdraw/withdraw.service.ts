@@ -1,7 +1,7 @@
 import httpStatus from "http-status";
 import ApiError from "../../../errors/ApiErrors";
 import prisma from "../../../shared/prisma";
-import { WithdrawStatus, WithdrawType } from "@prisma/client";
+import { Prisma, WithdrawStatus, WithdrawType } from "@prisma/client";
 import stripe from "../../../helpers/stripe";
 import type Stripe from "stripe";
 import { NotificationServices } from "../Notification/notification.service";
@@ -463,11 +463,114 @@ const getMyWithdrawHistory = async (
 
   return { data: withdrawals, meta };
 };
+const getAllWithdraws = async (query: Record<string, unknown>) => {
+  const { from, to } = query;
 
+  const filters: Prisma.WithdrawTransectionWhereInput = {};
+
+  if (from || to) {
+    filters.createdAt = {};
+
+    if (from) {
+      filters.createdAt.gte = new Date(from as string);
+    }
+
+    if (to) {
+      const endDate = new Date(to as string);
+      endDate.setHours(23, 59, 59, 999);
+
+      filters.createdAt.lte = endDate;
+    }
+  }
+
+  const queryBuilder = new QueryBuilder(prisma.withdrawTransection, query);
+
+  const withdraws = await queryBuilder
+    .search([
+      "user.firstName",
+      "user.lastName",
+      "user.fullName",
+      "user.email",
+      "user.phone",
+    ])
+    .filter()
+    .rawFilter(filters)
+    .sort()
+    .paginate()
+    .include({
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          photo: true,
+        },
+      },
+      wallet: {
+        select: {
+          id: true,
+          availableBalance: true,
+          totalEarned: true,
+          totalWithdrawn: true,
+          currency: true,
+        },
+      },
+    })
+    .execute();
+
+  const meta = await queryBuilder.countTotal();
+
+  return {
+    meta,
+    data: withdraws,
+  };
+};
+const getSingleWithdraw = async (id: string) => {
+  const withdraw = await prisma.withdrawTransection.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          photo: true,
+          stripeAccountId: true,
+          stripeAccountVerified: true,
+        },
+      },
+      wallet: {
+        select: {
+          id: true,
+          availableBalance: true,
+          totalEarned: true,
+          totalWithdrawn: true,
+          currency: true,
+        },
+      },
+    },
+  });
+
+  if (!withdraw) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Withdraw request not found");
+  }
+
+  return withdraw;
+};
 export const WithdrawServices = {
   requestWithdraw,
   confirmInstantWithdraw,
   failInstantWithdraw,
   handleTransferReversed,
   getMyWithdrawHistory,
+    getAllWithdraws,
+  getSingleWithdraw,
 };
