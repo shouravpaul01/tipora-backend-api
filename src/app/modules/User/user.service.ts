@@ -256,6 +256,7 @@ const getAllUsers = async (query: Record<string, unknown>) => {
     .search(["firstName", "lastName", "fullName", "email", "phone"])
     .rawFilter({
       role: UserRole.USER,
+      isDeleted: false,
     })
     .filter()
     .sort()
@@ -272,29 +273,68 @@ const getAllUsers = async (query: Record<string, unknown>) => {
       isEmailVerified: true,
       isPhoneVerified: true,
       createdAt: true,
-    })
-    .include({
+
       auth: {
         select: {
           lastLoginAt: true,
         },
       },
-      wallet: true,
+
+      wallet: {
+        select: {
+          totalEarned: true,
+          totalWithdrawn: true,
+          availableBalance: true,
+          currency: true,
+        },
+      },
+
+      _count: {
+        select: {
+          paymentMethods: true,
+          sentTips: true,
+          receivedTips: true,
+          withdrawTransections: true,
+          raisedTickets: true,
+          assignedTickets: true,
+          notifications: true,
+        },
+      },
     });
 
-  const [data, meta] = await Promise.all([
+  const [users, meta] = await Promise.all([
     queryBuilder.execute(),
     queryBuilder.countTotal(),
   ]);
+
+  const data = users.map((user: any) => {
+    const { _count, ...userData } = user;
+
+    return {
+      ...userData,
+      stats: {
+        totalPaymentMethods: _count.paymentMethods,
+        totalSentTips: _count.sentTips,
+        totalReceivedTips: _count.receivedTips,
+        totalWithdrawRequests: _count.withdrawTransections,
+        totalRaisedTickets: _count.raisedTickets,
+        totalAssignedTickets: _count.assignedTickets,
+        totalNotifications: _count.notifications,
+      },
+    };
+  });
 
   return {
     meta,
     data,
   };
 };
+
 const getSingleUserDetails = async (userId: string) => {
-  const user = await prisma.user.findFirst({
-    where: { id: userId, isDeleted: false },
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
     select: {
       id: true,
       firstName: true,
@@ -304,12 +344,47 @@ const getSingleUserDetails = async (userId: string) => {
       phone: true,
       photo: true,
       bio: true,
+
       role: true,
       status: true,
+
+      isEmailVerified: true,
+      isPhoneVerified: true,
+
+      stripeCustomerId: true,
       stripeAccountId: true,
       stripeAccountVerified: true,
+
       createdAt: true,
       updatedAt: true,
+
+      auth: {
+        select: {
+          lastLoginAt: true,
+          passwordChangedAt: true,
+        },
+      },
+
+      wallet: {
+        select: {
+          totalEarned: true,
+          totalWithdrawn: true,
+          availableBalance: true,
+          currency: true,
+        },
+      },
+
+      _count: {
+        select: {
+          paymentMethods: true,
+          sentTips: true,
+          receivedTips: true,
+          withdrawTransections: true,
+          raisedTickets: true,
+          assignedTickets: true,
+          notifications: true,
+        },
+      },
     },
   });
 
@@ -317,7 +392,20 @@ const getSingleUserDetails = async (userId: string) => {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
   }
 
-  return user;
+  const { _count, ...userData } = user;
+
+  return {
+    ...userData,
+    stats: {
+      totalPaymentMethods: _count.paymentMethods,
+      totalSentTips: _count.sentTips,
+      totalReceivedTips: _count.receivedTips,
+      totalWithdrawRequests: _count.withdrawTransections,
+      totalRaisedTickets: _count.raisedTickets,
+      totalAssignedTickets: _count.assignedTickets,
+      totalNotifications: _count.notifications,
+    },
+  };
 };
 // ── update my profile ─────────────────────────────────
 

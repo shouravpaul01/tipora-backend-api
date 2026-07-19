@@ -157,26 +157,37 @@ class QueryBuilder {
   }
 
   // Fields Selection
-  fields(select?: Record<string, boolean>) {
-  if (select) {
+  fields(defaultSelect?: Record<string, any>) {
+    if (defaultSelect) {
+      this.prismaQuery.select = defaultSelect;
+      return this;
+    }
+
+    const fields = (this.query.fields as string)?.split(",");
+
+    if (!fields?.length) return this;
+
+    const select: Record<string, any> = {};
+
+    fields.forEach((field) => {
+      const keys = field.trim().split(".");
+
+      let current = select;
+
+      keys.forEach((key, index) => {
+        if (index === keys.length - 1) {
+          current[key] = true;
+        } else {
+          current[key] ??= { select: {} };
+          current = current[key].select;
+        }
+      });
+    });
+
     this.prismaQuery.select = select;
+
     return this;
   }
-
-  const fields = (this.query.fields as string)?.split(",") || [];
-
-  if (fields.length) {
-    this.prismaQuery.select = fields.reduce(
-      (acc: Record<string, boolean>, field) => {
-        acc[field] = true;
-        return acc;
-      },
-      {}
-    );
-  }
-
-  return this;
-}
 
   // **Include Related Models*/
   include(includableFields: Record<string, boolean | object>) {

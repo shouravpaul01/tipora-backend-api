@@ -7,6 +7,7 @@ import { NotificationRoutes } from "../modules/Notification/notification.route";
 import { PaymentMethodRoutes } from "../modules/PaymentMethod/paymentMethod.route";
 import { TipRoutes } from "../modules/Tips/tips.route";
 import { WithdrawRoutes } from "../modules/Withdraw/withdraw.route";
+import { PlatformRevenueRoutes } from "../modules/PlatformRevenue/platformRevenue.route";
 
 const router = express.Router();
 
@@ -35,7 +36,10 @@ const moduleRoutes = [
     path: "/withdraw",
     route: WithdrawRoutes,
   },
-
+ {
+    path: "/platform-revenue",
+    route: PlatformRevenueRoutes,
+  },
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));
