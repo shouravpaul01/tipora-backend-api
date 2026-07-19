@@ -31,7 +31,11 @@ router.get(
 // ─────────────────────────────────────────────────────────────
 // Admin Routes
 // ─────────────────────────────────────────────────────────────
-
+router.get(
+  "/summary",
+  auth(UserRole.ADMIN),
+  WithdrawControllers.getWithdrawSummary,
+);
 // Get all withdraw requests
 router.get(
   "/",

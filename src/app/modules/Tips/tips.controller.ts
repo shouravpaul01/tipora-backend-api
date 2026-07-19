@@ -48,9 +48,20 @@ const getSingleTip = catchAsync(async (req, res) => {
     data: result,
   });
 });
+const getTipSummary = catchAsync(async (req, res) => {
+  const result = await TipServices.getTipSummary();
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Tip summary retrieved successfully.",
+    data: result,
+  });
+});
 export const TipController = {
   sendTip,
   getMySentTips,
   getAllTips,
-  getSingleTip
+  getSingleTip,
+  getTipSummary
 };

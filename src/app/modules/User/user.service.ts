@@ -614,7 +614,124 @@ const updateOnboardingStatus = async (
     payoutsEnabled: stripeAccount?.payouts_enabled,
   };
 };
+const getUserSummary = async () => {
+  const now = new Date();
 
+  // Today
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  // Week
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - 6);
+  weekStart.setHours(0, 0, 0, 0);
+
+  // Month
+  const monthStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1,
+  );
+
+  // Year
+  const yearStart = new Date(
+    now.getFullYear(),
+    0,
+    1,
+  );
+
+  const userFilter = {
+    role: UserRole.USER,
+    isDeleted: false,
+  };
+
+  const [
+    today,
+    weekly,
+    monthly,
+    yearly,
+    total,
+    verifiedUsers,
+    activeUsers,
+    blockedUsers,
+  ] = await Promise.all([
+    prisma.user.count({
+      where: {
+        ...userFilter,
+        createdAt: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        ...userFilter,
+        createdAt: {
+          gte: weekStart,
+        },
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        ...userFilter,
+        createdAt: {
+          gte: monthStart,
+        },
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        ...userFilter,
+        createdAt: {
+          gte: yearStart,
+        },
+      },
+    }),
+
+    prisma.user.count({
+      where: userFilter,
+    }),
+
+    prisma.user.count({
+      where: {
+        ...userFilter,
+        isEmailVerified: true,
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        ...userFilter,
+        status: UserStatus.ACTIVE,
+      },
+    }),
+
+    prisma.user.count({
+      where: {
+        ...userFilter,
+        status: UserStatus.BLOCKED,
+      },
+    }),
+  ]);
+
+  return {
+    today,
+    weekly,
+    monthly,
+    yearly,
+    total,
+    verifiedUsers,
+    activeUsers,
+    blockedUsers,
+  };
+};
 export const UserServices = {
   getMe,
   getAllUsers,
@@ -625,4 +742,5 @@ export const UserServices = {
   deleteMe,
   createOnboardingLink,
   updateOnboardingStatus,
+  getUserSummary
 };

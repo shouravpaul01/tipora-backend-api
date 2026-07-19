@@ -69,8 +69,104 @@ const getSinglePlatformRevenue = async (id: string) => {
 
   return revenue;
 };
+const getPlatformRevenueSummary = async () => {
+  const now = new Date();
 
+  // Today
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  // Week
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - 6);
+  weekStart.setHours(0, 0, 0, 0);
+
+  // Month
+  const monthStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1,
+  );
+
+  // Year
+  const yearStart = new Date(
+    now.getFullYear(),
+    0,
+    1,
+  );
+
+  const [
+    todayRevenue,
+    weeklyRevenue,
+    monthlyRevenue,
+    yearlyRevenue,
+    totalRevenue,
+  ] = await Promise.all([
+    prisma.platformRevenue.aggregate({
+      where: {
+        createdAt: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    }),
+
+    prisma.platformRevenue.aggregate({
+      where: {
+        createdAt: {
+          gte: weekStart,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    }),
+
+    prisma.platformRevenue.aggregate({
+      where: {
+        createdAt: {
+          gte: monthStart,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    }),
+
+    prisma.platformRevenue.aggregate({
+      where: {
+        createdAt: {
+          gte: yearStart,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    }),
+
+    prisma.platformRevenue.aggregate({
+      _sum: {
+        amount: true,
+      },
+    }),
+  ]);
+
+  return {
+    today: Number(todayRevenue._sum.amount ?? 0),
+    weekly: Number(weeklyRevenue._sum.amount ?? 0),
+    monthly: Number(monthlyRevenue._sum.amount ?? 0),
+    yearly: Number(yearlyRevenue._sum.amount ?? 0),
+    total: Number(totalRevenue._sum.amount ?? 0),
+  };
+};
 export const PlatformRevenueServices = {
   getAllPlatformRevenues,
   getSinglePlatformRevenue,
+  getPlatformRevenueSummary,
 };

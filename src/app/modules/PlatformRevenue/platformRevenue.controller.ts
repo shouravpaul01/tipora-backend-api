@@ -30,8 +30,19 @@ const getSinglePlatformRevenue = catchAsync(async (req, res) => {
     data: result,
   });
 });
+const getPlatformRevenueSummary = catchAsync(async (req, res) => {
+  const result =
+    await PlatformRevenueServices.getPlatformRevenueSummary();
 
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Platform revenue summary retrieved successfully.",
+    data: result,
+  });
+});
 export const PlatformRevenueControllers = {
   getAllPlatformRevenues,
   getSinglePlatformRevenue,
+  getPlatformRevenueSummary
 };

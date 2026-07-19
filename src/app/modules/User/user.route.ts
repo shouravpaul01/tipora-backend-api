@@ -58,6 +58,29 @@ router.patch(
  * ======================================================
  */
 router.get(
+  "/summary",
+  auth(UserRole.ADMIN),
+  UserController.getUserSummary,
+);
+
+router.get(
+  "/",
+  auth(UserRole.ADMIN),
+  UserController.getAllUsers,
+);
+
+router.get(
+  "/details/:id",
+  auth(UserRole.ADMIN),
+  UserController.getSingleUserDetails,
+);
+
+router.get(
+  "/me",
+  auth(),
+  UserController.getMe,
+);
+router.get(
   "/",
   auth(UserRole.ADMIN),
   UserController.getAllUsers

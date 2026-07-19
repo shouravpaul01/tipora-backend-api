@@ -16,7 +16,11 @@ router.post(
 );
 
 router.get("/my-tips", auth(), TipController.getMySentTips);
-
+router.get(
+  "/summary",
+  auth(UserRole.ADMIN),
+  TipController.getTipSummary,
+);
 router.get("/", auth(UserRole.ADMIN), TipController.getAllTips);
 
 router.get("/:id", auth(UserRole.ADMIN), TipController.getSingleTip);

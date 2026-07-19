@@ -24,9 +24,7 @@ const getStripeTransferErrorMessage = (error: any): string => {
 // Pulls the ACTUAL fee Stripe charged for an instant payout off its
 // balance transaction. Requires the payout to be created with
 // `expand: ["balance_transaction"]`. Standard payouts have no fee.
-const getPayoutFeeCents = (
-  payout: Stripe.Payout | undefined,
-): number => {
+const getPayoutFeeCents = (payout: Stripe.Payout | undefined): number => {
   if (!payout) return 0;
   const balanceTransaction = payout.balance_transaction;
   if (!balanceTransaction || typeof balanceTransaction === "string") return 0;
@@ -177,7 +175,10 @@ const requestWithdraw = async (
         title: "Withdrawal successful!",
         body: `$${amount.toFixed(2)} has been transferred to your payout account.`,
         type: "WITHDRAW_COMPLETED",
-        data: { withdrawTransectionId: withdrawTransection.id, amount: amount.toString() },
+        data: {
+          withdrawTransectionId: withdrawTransection.id,
+          amount: amount.toString(),
+        },
       }).catch(console.error);
 
       return completedTransection;
@@ -212,7 +213,10 @@ const requestWithdraw = async (
       title: "Withdrawal processing",
       body: `Your $${amount.toFixed(2)} instant withdrawal is on its way — you'll be notified once it lands.`,
       type: "WITHDRAW_REQUESTED",
-      data: { withdrawTransectionId: withdrawTransection.id, amount: amount.toString() },
+      data: {
+        withdrawTransectionId: withdrawTransection.id,
+        amount: amount.toString(),
+      },
     }).catch(console.error);
 
     return processingTransection;
@@ -266,8 +270,8 @@ const confirmInstantWithdraw = async (
   connectedAccountId: string,
 ) => {
   console.log("confirmInstantWithdraw called");
-console.log("Payout ID:", payout.id);
-console.log("Connected Account:", connectedAccountId);
+  console.log("Payout ID:", payout.id);
+  console.log("Connected Account:", connectedAccountId);
   const withdrawTransection = await prisma.withdrawTransection.findFirst({
     where: { stripePayoutId: payout.id, status: WithdrawStatus.PROCESSING },
   });
@@ -429,7 +433,10 @@ const handleTransferReversed = async (transfer: Stripe.Transfer) => {
     title: "Withdrawal reversed",
     body: `Your $${withdrawTransection.amount.toFixed(2)} withdrawal was reversed and the amount has been returned to your wallet.`,
     type: "WITHDRAW_FAILED",
-    data: { withdrawTransectionId: withdrawTransection.id, reason: failureReason },
+    data: {
+      withdrawTransectionId: withdrawTransection.id,
+      reason: failureReason,
+    },
   }).catch(console.error);
 };
 
@@ -565,12 +572,156 @@ const getSingleWithdraw = async (id: string) => {
 
   return withdraw;
 };
+const getWithdrawSummary = async () => {
+  const now = new Date();
+
+  // Today
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  // Week
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - 6);
+  weekStart.setHours(0, 0, 0, 0);
+
+  // Month
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // Year
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+
+  const [today, weekly, monthly, yearly, total] = await Promise.all([
+    prisma.withdrawTransection.aggregate({
+      where: {
+        status: "COMPLETED",
+        createdAt: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+      _count: true,
+      _sum: {
+        amount: true,
+        netAmount: true,
+        platformFee: true,
+        stripeFee: true,
+      },
+    }),
+
+    prisma.withdrawTransection.aggregate({
+      where: {
+        status: "COMPLETED",
+        createdAt: {
+          gte: weekStart,
+        },
+      },
+      _count: true,
+      _sum: {
+        amount: true,
+        netAmount: true,
+        platformFee: true,
+        stripeFee: true,
+      },
+    }),
+
+    prisma.withdrawTransection.aggregate({
+      where: {
+        status: "COMPLETED",
+        createdAt: {
+          gte: monthStart,
+        },
+      },
+      _count: true,
+      _sum: {
+        amount: true,
+        netAmount: true,
+        platformFee: true,
+        stripeFee: true,
+      },
+    }),
+
+    prisma.withdrawTransection.aggregate({
+      where: {
+        status: "COMPLETED",
+        createdAt: {
+          gte: yearStart,
+        },
+      },
+      _count: true,
+      _sum: {
+        amount: true,
+        netAmount: true,
+        platformFee: true,
+        stripeFee: true,
+      },
+    }),
+
+    prisma.withdrawTransection.aggregate({
+      where: {
+        status: "COMPLETED",
+      },
+      _count: true,
+      _sum: {
+        amount: true,
+        netAmount: true,
+        platformFee: true,
+        stripeFee: true,
+      },
+    }),
+  ]);
+
+  return {
+    today: {
+      totalWithdraws: today._count,
+      totalAmount: Number(today._sum.amount ?? 0),
+      totalNetAmount: Number(today._sum.netAmount ?? 0),
+      totalPlatformFee: Number(today._sum.platformFee ?? 0),
+      totalStripeFee: Number(today._sum.stripeFee ?? 0),
+    },
+
+    weekly: {
+      totalWithdraws: weekly._count,
+      totalAmount: Number(weekly._sum.amount ?? 0),
+      totalNetAmount: Number(weekly._sum.netAmount ?? 0),
+      totalPlatformFee: Number(weekly._sum.platformFee ?? 0),
+      totalStripeFee: Number(weekly._sum.stripeFee ?? 0),
+    },
+
+    monthly: {
+      totalWithdraws: monthly._count,
+      totalAmount: Number(monthly._sum.amount ?? 0),
+      totalNetAmount: Number(monthly._sum.netAmount ?? 0),
+      totalPlatformFee: Number(monthly._sum.platformFee ?? 0),
+      totalStripeFee: Number(monthly._sum.stripeFee ?? 0),
+    },
+
+    yearly: {
+      totalWithdraws: yearly._count,
+      totalAmount: Number(yearly._sum.amount ?? 0),
+      totalNetAmount: Number(yearly._sum.netAmount ?? 0),
+      totalPlatformFee: Number(yearly._sum.platformFee ?? 0),
+      totalStripeFee: Number(yearly._sum.stripeFee ?? 0),
+    },
+
+    total: {
+      totalWithdraws: total._count,
+      totalAmount: Number(total._sum.amount ?? 0),
+      totalNetAmount: Number(total._sum.netAmount ?? 0),
+      totalPlatformFee: Number(total._sum.platformFee ?? 0),
+      totalStripeFee: Number(total._sum.stripeFee ?? 0),
+    },
+  };
+};
 export const WithdrawServices = {
   requestWithdraw,
   confirmInstantWithdraw,
   failInstantWithdraw,
   handleTransferReversed,
   getMyWithdrawHistory,
-    getAllWithdraws,
+  getAllWithdraws,
   getSingleWithdraw,
+  getWithdrawSummary,
 };

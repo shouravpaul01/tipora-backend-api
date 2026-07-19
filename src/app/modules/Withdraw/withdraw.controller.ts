@@ -4,7 +4,6 @@ import catchAsync from "../../../shared/catchAsync";
 import { WithdrawServices } from "./withdraw.service";
 import sendResponse from "../../../shared/sendResponse";
 
-
 // ═════════════════════════════════════════════════════════════════════════════
 // REQUEST WITHDRAWAL
 // POST /api/v1/withdraw
@@ -21,9 +20,6 @@ const requestWithdraw = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
-
-
-
 
 // ═════════════════════════════════════════════════════════════════════════════
 // GET MY WITHDRAW HISTORY
@@ -60,7 +56,9 @@ const getAllWithdraws = catchAsync(async (req, res) => {
   });
 });
 const getSingleWithdraw = catchAsync(async (req, res) => {
-  const result = await WithdrawServices.getSingleWithdraw(req.params.id as string);
+  const result = await WithdrawServices.getSingleWithdraw(
+    req.params.id as string,
+  );
 
   sendResponse(res, {
     success: true,
@@ -69,14 +67,21 @@ const getSingleWithdraw = catchAsync(async (req, res) => {
     data: result,
   });
 });
+const getWithdrawSummary = catchAsync(async (req, res) => {
+  const result = await WithdrawServices.getWithdrawSummary();
 
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Withdraw summary retrieved successfully.",
+    data: result,
+  });
+});
 export const WithdrawControllers = {
   requestWithdraw,
 
   getMyWithdrawHistory,
-    getAllWithdraws,
+  getAllWithdraws,
   getSingleWithdraw,
-
+  getWithdrawSummary,
 };
-
- 

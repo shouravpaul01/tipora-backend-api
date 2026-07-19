@@ -598,9 +598,137 @@ const getSingleTip = async (id: string) => {
 
   return tip;
 };
+const getTipSummary = async () => {
+  const now = new Date();
+
+  // Today
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  // Week
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - 6);
+  weekStart.setHours(0, 0, 0, 0);
+
+  // Month
+  const monthStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1,
+  );
+
+  // Year
+  const yearStart = new Date(
+    now.getFullYear(),
+    0,
+    1,
+  );
+
+  const [
+    today,
+    weekly,
+    monthly,
+    yearly,
+    total,
+  ] = await Promise.all([
+    prisma.tip.aggregate({
+      where: {
+        status: "COMPLETED",
+        createdAt: {
+          gte: todayStart,
+          lte: todayEnd,
+        },
+      },
+      _count: true,
+      _sum: {
+        totalAmount: true,
+      },
+    }),
+
+    prisma.tip.aggregate({
+      where: {
+        status: "COMPLETED",
+        createdAt: {
+          gte: weekStart,
+        },
+      },
+      _count: true,
+      _sum: {
+        totalAmount: true,
+      },
+    }),
+
+    prisma.tip.aggregate({
+      where: {
+        status: "COMPLETED",
+        createdAt: {
+          gte: monthStart,
+        },
+      },
+      _count: true,
+      _sum: {
+        totalAmount: true,
+      },
+    }),
+
+    prisma.tip.aggregate({
+      where: {
+        status: "COMPLETED",
+        createdAt: {
+          gte: yearStart,
+        },
+      },
+      _count: true,
+      _sum: {
+        totalAmount: true,
+      },
+    }),
+
+    prisma.tip.aggregate({
+      where: {
+        status: "COMPLETED",
+      },
+      _count: true,
+      _sum: {
+        totalAmount: true,
+      },
+    }),
+  ]);
+
+  return {
+    today: {
+      totalTips: today._count,
+      totalAmount: Number(today._sum.totalAmount ?? 0),
+    },
+
+    weekly: {
+      totalTips: weekly._count,
+      totalAmount: Number(weekly._sum.totalAmount ?? 0),
+    },
+
+    monthly: {
+      totalTips: monthly._count,
+      totalAmount: Number(monthly._sum.totalAmount ?? 0),
+    },
+
+    yearly: {
+      totalTips: yearly._count,
+      totalAmount: Number(yearly._sum.totalAmount ?? 0),
+    },
+
+    total: {
+      totalTips: total._count,
+      totalAmount: Number(total._sum.totalAmount ?? 0),
+    },
+  };
+};
 export const TipServices = {
   sendTip,
   getMySentTips,
   getAllTips,
   getSingleTip,
+  getTipSummary
 };

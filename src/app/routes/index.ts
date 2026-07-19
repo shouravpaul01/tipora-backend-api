@@ -8,6 +8,8 @@ import { PaymentMethodRoutes } from "../modules/PaymentMethod/paymentMethod.rout
 import { TipRoutes } from "../modules/Tips/tips.route";
 import { WithdrawRoutes } from "../modules/Withdraw/withdraw.route";
 import { PlatformRevenueRoutes } from "../modules/PlatformRevenue/platformRevenue.route";
+import { DashboardRoutes } from "../modules/Overview/overview.route";
+import { SupportTicketRoutes } from "../modules/Support/support.route";
 
 const router = express.Router();
 
@@ -39,6 +41,14 @@ const moduleRoutes = [
  {
     path: "/platform-revenue",
     route: PlatformRevenueRoutes,
+  },
+   {
+    path: "/dashboard",
+    route: DashboardRoutes,
+  },
+   {
+    path: "/support",
+    route: SupportTicketRoutes,
   },
 ];
 

@@ -1,4 +1,3 @@
-
 import { Request, Response } from "express";
 import httpStatus from "http-status";
 import catchAsync from "../../../shared/catchAsync";
@@ -29,7 +28,7 @@ const getAllUsers = catchAsync(async (req, res) => {
 const updateStatus = catchAsync(async (req, res) => {
   const result = await UserServices.updateStatus(
     req.params.id as string,
-    req.body.status
+    req.body.status,
   );
 
   sendResponse(res, {
@@ -40,7 +39,9 @@ const updateStatus = catchAsync(async (req, res) => {
   });
 });
 const getSingleUserDetails = catchAsync(async (req: Request, res: Response) => {
-  const result = await UserServices.getSingleUserDetails(req.params.id as string);
+  const result = await UserServices.getSingleUserDetails(
+    req.params.id as string,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -49,7 +50,11 @@ const getSingleUserDetails = catchAsync(async (req: Request, res: Response) => {
   });
 });
 const updateMe = catchAsync(async (req: Request, res: Response) => {
-  const result = await UserServices.updateMe(req.user.id,req.file as Express.Multer.File, req.body);
+  const result = await UserServices.updateMe(
+    req.user.id,
+    req.file as Express.Multer.File,
+    req.body,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -59,7 +64,7 @@ const updateMe = catchAsync(async (req: Request, res: Response) => {
 });
 
 const deleteMe = catchAsync(async (req: Request, res: Response) => {
-  const result = await UserServices.deleteMe(req.user.id,res);
+  const result = await UserServices.deleteMe(req.user.id, res);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -80,23 +85,36 @@ const startOnboarding = catchAsync(async (req: Request, res: Response) => {
 
 // ── check onboarding status ─────────────────────────
 
-const updateOnboardingStatus = catchAsync(async (req: Request, res: Response) => {
-  const result = await UserServices.updateOnboardingStatus(req.user.id ,null);
+const updateOnboardingStatus = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await UserServices.updateOnboardingStatus(req.user.id, null);
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Onboarding status fetched successfully.",
+      data: result,
+    });
+  },
+);
+const getUserSummary = catchAsync(async (req, res) => {
+  const result = await UserServices.getUserSummary();
 
   sendResponse(res, {
-    statusCode: httpStatus.OK,
     success: true,
-    message: "Onboarding status fetched successfully.",
+    statusCode: httpStatus.OK,
+    message: "User summary retrieved successfully.",
     data: result,
   });
 });
 export const UserController = {
   getMe,
-    getAllUsers,
+  getAllUsers,
   updateStatus,
   getSingleUserDetails,
   updateMe,
   deleteMe,
   startOnboarding,
-  updateOnboardingStatus
+  updateOnboardingStatus,
+  getUserSummary,
 };
