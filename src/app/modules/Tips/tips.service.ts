@@ -493,28 +493,36 @@ const getMySentTips = async (
   return { data: tips, meta };
 };
 const getAllTips = async (query: Record<string, unknown>) => {
-  const { from, to } = query;
+  const {
+    fromDate,
+    toDate,
+    ...filterQuery
+  } = query;
 
   const filters: Prisma.TipWhereInput = {};
 
-  if (from || to) {
+  if (fromDate || toDate) {
     filters.createdAt = {};
 
-    if (from) {
-      filters.createdAt.gte = new Date(from as string);
+    if (fromDate) {
+      filters.createdAt.gte = new Date(fromDate as string);
     }
 
-    if (to) {
-      const endDate = new Date(to as string);
+    if (toDate) {
+      const endDate = new Date(toDate as string);
       endDate.setHours(23, 59, 59, 999);
       filters.createdAt.lte = endDate;
     }
   }
 
-  const queryBuilder = new QueryBuilder(prisma.tip, query);
+  const queryBuilder = new QueryBuilder(
+    prisma.tip,
+    filterQuery // ✅ fromDate & toDate removed
+  );
 
   const tips = await queryBuilder
     .search(["message"])
+    .filter()
     .rawFilter(filters)
     .sort()
     .paginate()

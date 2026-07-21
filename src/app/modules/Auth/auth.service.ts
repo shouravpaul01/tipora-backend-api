@@ -9,15 +9,16 @@ import { generateOtp } from "../../../utils/generateOtp";
 import { env } from "../../../config/env.config";
 import ApiError from "../../../errors/ApiErrors";
 import { sendSMS } from "../../../helpers/sendSMS";
+import { User } from "@prisma/client";
 
-const setTokenCookies = (res: any, userId: string, role: string) => {
+const setTokenCookies = (res: any, user:Partial<User>) => {
   const accessToken = jwtHelpers.generateToken(
-    { id: userId, role },
+    { ...user },
     env.JWT_SECRET,
     env.EXPIRES_IN as any,
   );
   const refreshToken = jwtHelpers.generateToken(
-    { id: userId, role },
+    { user },
     env.REFRESH_TOKEN_SECRET!,
     env.REFRESH_TOKEN_EXPIRES_IN as any,
   );
@@ -133,7 +134,7 @@ const verifyOtp = async (
       isPhoneVerified: true,
       ...(payload.fcmToken && { fcmToken: payload.fcmToken }),
     },
-    select: { id: true, fullName: true, phone: true, email: true, role: true },
+    select: { id: true, fullName: true, phone: true, email: true, role: true,photo:true },
   });
 
   //  Wallet check
@@ -152,7 +153,7 @@ const verifyOtp = async (
 
   await redis.del(`otp:register:${payload.phone}`);
 
-  const tokens = setTokenCookies(res, user.id, user.role);
+  const tokens = setTokenCookies(res, {id:user.id,role:user.role,email:user.email,phone:user.phone,fullName:user.fullName, photo:user.photo});
 
   return { user, ...tokens };
 };
@@ -199,7 +200,7 @@ const login = async (
   }
 
   const { auth, ...safeUser } = user;
-  const tokens = setTokenCookies(res, user.id, user.role);
+  const tokens = setTokenCookies(res, {id:user.id,role:user.role,email:user.email,phone:user.phone,fullName:user.fullName,photo:user.photo});
   return { user: safeUser, ...tokens };
 };
 
@@ -335,7 +336,7 @@ const refreshToken = async (token: string, res: any) => {
 
   const user = await prisma.user.findUnique({
     where: { id: decoded.id },
-    select: { id: true, role: true, status: true, isDeleted: true },
+ 
   });
 
   if (!user || user.isDeleted || user.status === "BLOCKED") {
@@ -346,7 +347,7 @@ const refreshToken = async (token: string, res: any) => {
     );
   }
 
-  const tokens = setTokenCookies(res, user.id, user.role);
+  const tokens = setTokenCookies(res, {id:user.id,role:user.role,email:user.email,phone:user.phone,fullName:user.fullName,photo:user.photo});
   return tokens;
 };
 

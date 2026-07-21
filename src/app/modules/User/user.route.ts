@@ -15,12 +15,15 @@ const router = Router();
  * Current Authenticated User
  * ======================================================
  */
+
+// Get current user
 router.get(
   "/me",
   auth(),
   UserController.getMe
 );
 
+// Update current user profile
 router.patch(
   "/me",
   auth(),
@@ -29,6 +32,7 @@ router.patch(
   UserController.updateMe
 );
 
+// Delete current user account
 router.delete(
   "/me",
   auth(),
@@ -40,6 +44,7 @@ router.delete(
  * User Onboarding
  * ======================================================
  */
+
 router.post(
   "/me/onboarding",
   auth(),
@@ -57,41 +62,29 @@ router.patch(
  * Admin User Management
  * ======================================================
  */
+
+// Dashboard summary
 router.get(
   "/summary",
   auth(UserRole.ADMIN),
-  UserController.getUserSummary,
+  UserController.getUserSummary
 );
 
-router.get(
-  "/",
-  auth(UserRole.ADMIN),
-  UserController.getAllUsers,
-);
-
-router.get(
-  "/details/:id",
-  auth(UserRole.ADMIN),
-  UserController.getSingleUserDetails,
-);
-
-router.get(
-  "/me",
-  auth(),
-  UserController.getMe,
-);
+// All users
 router.get(
   "/",
   auth(UserRole.ADMIN),
   UserController.getAllUsers
 );
 
+// Single user details
 router.get(
   "/:id",
   auth(UserRole.ADMIN),
   UserController.getSingleUserDetails
 );
 
+// Update user status
 router.patch(
   "/:id/status",
   auth(UserRole.ADMIN),
