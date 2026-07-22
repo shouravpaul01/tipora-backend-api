@@ -18,7 +18,7 @@ import { stripeWebhookHandler } from "./webhook/stripe.webhook";
 const app: Application = express();
 
 export const corsOptions = {
-  origin: ["http://localhost:3000"],
+  origin: ["http://localhost:3000","https://dashboard.app--magic.com","https://dashboard.app--magic.com/"],
 
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   allowedHeaders: [
