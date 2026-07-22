@@ -12,7 +12,9 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().url("FRONTEND_URL must be a valid URL"),
   BACKEND_IMAGE_URL: z.string().url("BACKEND_IMAGE_URL must be a valid URL"),
   PORT: z.coerce.number().default(5000),
-
+  ADMIN_PHONENUMBER: z.string().nonempty("Admin phone number is required"),
+  ADMIN_EMAIL:z.string().nonempty("Admin phone number is required").email("Invalid email"),
+  ADMIN_PASSWORD: z.string().nonempty("Admin password is required"),
   // Stripe
   STRIPE_SECRET_KEY: z.string().min(1, "STRIPE_SECRET_KEY is required"),
   // STRIPE_PUBLISHABLE_KEY: z.string().min(1, "STRIPE_PUBLISHABLE_KEY is required"),

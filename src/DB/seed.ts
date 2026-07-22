@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import prisma from "../shared/prisma";
+import { env } from "../config/env.config";
 
 export const initiateSuperAdmin = async () => {
   const existingAdmin = await prisma.user.findFirst({
@@ -11,17 +12,18 @@ export const initiateSuperAdmin = async () => {
     return;
   }
 
-  const hashedPassword = await bcrypt.hash("admin123", 10);
+  const hashedPassword = await bcrypt.hash(env.ADMIN_PASSWORD, 12);
 
   await prisma.user.create({
     data: {
       firstName: "Super",
       lastName: "Admin",
       fullName: "Super Admin",
-      email: "admin@example.com",
-      phone: "+8801863272200",
+      email: env.ADMIN_EMAIL,
+      phone: env.ADMIN_PHONENUMBER,
       role: "ADMIN",
       isPhoneVerified:true,
+      isEmailVerified:true,
       auth: {
         create: {
           password: hashedPassword,
