@@ -10,33 +10,46 @@ import { env } from "../../../config/env.config";
 import ApiError from "../../../errors/ApiErrors";
 import { sendSMS } from "../../../helpers/sendSMS";
 import { User } from "@prisma/client";
+import ms, { StringValue } from "ms";
 
-const setTokenCookies = (res: any, user:Partial<User>) => {
+const setTokenCookies = (res: any, user: Partial<User>) => {
   const accessToken = jwtHelpers.generateToken(
     { ...user },
     env.JWT_SECRET,
     env.EXPIRES_IN as any,
   );
+
   const refreshToken = jwtHelpers.generateToken(
     { user },
     env.REFRESH_TOKEN_SECRET!,
     env.REFRESH_TOKEN_EXPIRES_IN as any,
   );
 
-  // res.cookie("accessToken", accessToken, {
-  //   httpOnly: true,
-  //   secure: process.env.NODE_ENV === "production",
-  //   sameSite: "strict",
-  //   maxAge: 15 * 60 * 1000, // 15 min
-  // });
-  // res.cookie("refreshToken", refreshToken, {
-  //   httpOnly: true,
-  //   secure: process.env.NODE_ENV === "production",
-  //   sameSite: "strict",
-  //   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  // });
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    domain:
+      process.env.NODE_ENV === "production"
+        ? ".app-magic.com"
+        : undefined,
+    path: "/",
+  };
 
-  return { accessToken, refreshToken };
+  res.cookie("accessToken", accessToken, {
+    ...cookieOptions,
+    maxAge: ms(env.EXPIRES_IN as StringValue),
+  });
+
+  res.cookie("refreshToken", refreshToken, {
+    ...cookieOptions,
+    maxAge: ms(env.REFRESH_TOKEN_EXPIRES_IN as StringValue),
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+  };
 };
 
 // ── register ──────────────────────────────────────────────────────────────────
