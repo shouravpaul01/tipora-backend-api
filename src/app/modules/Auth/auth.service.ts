@@ -27,11 +27,11 @@ const setTokenCookies = (res: any, user: Partial<User>) => {
 
   const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: env.NODE_ENV === "production",
     sameSite: "lax" as const,
     domain:
-      process.env.NODE_ENV === "production"
-        ? ".app-magic.com"
+      env.NODE_ENV === "production"
+        ? ".app--magic.com"
         : undefined,
     path: "/",
   };
