@@ -11,7 +11,9 @@ import ApiError from "../../../errors/ApiErrors";
 import { sendSMS } from "../../../helpers/sendSMS";
 import { User } from "@prisma/client";
 import ms, { StringValue } from "ms";
-
+const cookiesDomain= env.NODE_ENV === "production"
+        ? ".app--magic.com"
+        : undefined
 const setTokenCookies = (res: any, user: Partial<User>) => {
   const accessToken = jwtHelpers.generateToken(
     { ...user },
@@ -29,10 +31,7 @@ const setTokenCookies = (res: any, user: Partial<User>) => {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
     sameSite: "lax" as const,
-    domain:
-      env.NODE_ENV === "production"
-        ? ".app--magic.com"
-        : undefined,
+    domain:cookiesDomain,
     path: "/",
   };
 
@@ -414,10 +413,16 @@ const changePassword = async (
 // ── logout ────────────────────────────────────────────────────────────────────
 
 const logout = async ( res: any) => {
- 
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    domain:cookiesDomain,
+    path: "/",
+  };
 
-  res.clearCookie("accessToken");
-  res.clearCookie("refreshToken");
+  res.clearCookie("accessToken", cookieOptions);
+  res.clearCookie("refreshToken", cookieOptions);
   return { message: "Logged out successfully." };
 };
 
