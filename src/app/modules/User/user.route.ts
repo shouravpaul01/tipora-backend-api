@@ -10,17 +10,15 @@ import { UserValidation } from "./user.validation";
 
 const router = Router();
 
-/**
- * ======================================================
+/* ============================================================
  * Current Authenticated User
- * ======================================================
- */
+ * ============================================================ */
 
 // Get current user
 router.get(
   "/me",
   auth(),
-  UserController.getMe
+  UserController.getMe,
 );
 
 // Update current user profile
@@ -29,59 +27,62 @@ router.patch(
   auth(),
   fileUploader.single("photo"),
   validateRequest(UserValidation.UpdateProfile),
-  UserController.updateMe
+  UserController.updateMe,
 );
 
 // Delete current user account
 router.delete(
   "/me",
   auth(),
-  UserController.deleteMe
+  UserController.deleteMe,
 );
 
-/**
- * ======================================================
+/* ============================================================
  * User Onboarding
- * ======================================================
- */
+ * ============================================================ */
 
 router.post(
   "/me/onboarding",
   auth(),
-  UserController.startOnboarding
+  UserController.startOnboarding,
 );
 
 router.patch(
   "/me/onboarding/status",
   auth(),
-  UserController.updateOnboardingStatus
+  UserController.updateOnboardingStatus,
 );
 
-/**
- * ======================================================
+/* ============================================================
  * Admin User Management
- * ======================================================
- */
+ * ============================================================ */
 
 // Dashboard summary
 router.get(
   "/summary",
   auth(UserRole.ADMIN),
-  UserController.getUserSummary
+  UserController.getUserSummary,
 );
 
 // All users
 router.get(
   "/",
   auth(UserRole.ADMIN),
-  UserController.getAllUsers
+  UserController.getAllUsers,
 );
 
-// Single user details
+// User details (User can access)
+router.get(
+  "/details/:id",
+  auth(),
+  UserController.getSingleUserDetails,
+);
+
+// User details (Admin)
 router.get(
   "/:id",
   auth(UserRole.ADMIN),
-  UserController.getSingleUserDetails
+  UserController.getSingleUserDetails,
 );
 
 // Update user status
@@ -89,7 +90,7 @@ router.patch(
   "/:id/status",
   auth(UserRole.ADMIN),
   validateRequest(UserValidation.updateStatus),
-  UserController.updateStatus
+  UserController.updateStatus,
 );
 
 export const UserRoutes = router;

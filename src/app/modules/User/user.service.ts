@@ -407,6 +407,50 @@ const getSingleUserDetails = async (userId: string) => {
     },
   };
 };
+const getUserDetailsWithCheck = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      photo: true,
+      bio: true,
+
+      role: true,
+      status: true,
+
+      isEmailVerified: true,
+      isPhoneVerified: true,
+
+      stripeCustomerId: true,
+      stripeAccountId: true,
+      stripeAccountVerified: true,
+
+      createdAt: true,
+      updatedAt: true,
+
+     
+
+    
+      
+      
+    },
+  });
+
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, "User not found.");
+  }
+
+ 
+
+  return user
+};
 // ── update my profile ─────────────────────────────────
 
 const updateMe = async (
@@ -737,6 +781,7 @@ export const UserServices = {
   getAllUsers,
 
   getSingleUserDetails,
+  getUserDetailsWithCheck,
   updateMe,
   updateStatus,
   deleteMe,
