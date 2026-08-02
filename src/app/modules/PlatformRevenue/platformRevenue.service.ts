@@ -8,25 +8,29 @@ import QueryBuilder from "../../../helpers/queryBuilder";
 const getAllPlatformRevenues = async (
   query: Record<string, unknown>,
 ) => {
-  const { from, to } = query;
+ const {
+    fromDate,
+    toDate,
+    ...filterQuery
+  } = query;
 
   const filters: Prisma.PlatformRevenueWhereInput = {};
 
-  if (from || to) {
+  if (fromDate || toDate) {
     filters.createdAt = {};
 
-    if (from) {
-      filters.createdAt.gte = new Date(from as string);
+    if (fromDate) {
+      filters.createdAt.gte = new Date(fromDate as string);
     }
 
-    if (to) {
-      const endDate = new Date(to as string);
+    if (toDate) {
+      const endDate = new Date(toDate as string);
       endDate.setHours(23, 59, 59, 999);
       filters.createdAt.lte = endDate;
     }
   }
 
-  const queryBuilder = new QueryBuilder(prisma.platformRevenue, query)
+  const queryBuilder = new QueryBuilder(prisma.platformRevenue, filterQuery)
     .search(["referenceType"])
     .filter()
     .rawFilter(filters)
