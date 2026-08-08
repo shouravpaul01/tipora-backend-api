@@ -187,14 +187,40 @@ const getAllTickets = async (query: Record<string, unknown>) => {
 // Internal notes are stripped out for non-admin requesters.
 // Also flips the relevant unread flag once the viewer opens it.
 // ═════════════════════════════════════════════════════════════════════════════
-const getTicketById = async (ticketId: string, requester: TicketRequester) => {
+const getTicketById = async (
+  ticketId: string,
+  requester: TicketRequester,
+) => {
   const ticket = await prisma.support.findUnique({
     where: { id: ticketId },
+
     include: {
       messages: {
-        where: requester.role === "ADMIN" ? {} : { isInternalNote: false },
-        orderBy: { createdAt: "asc" },
+        where:
+          requester.role === "ADMIN"
+            ? {}
+            : { isInternalNote: false },
+
+        orderBy: {
+          createdAt: "asc",
+        },
+
+        include: {
+          sender: {
+            select: {
+              id: true,
+              fullName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              photo: true,
+              role: true,
+            },
+          },
+        },
       },
+
       user: {
         select: {
           id: true,
@@ -206,30 +232,54 @@ const getTicketById = async (ticketId: string, requester: TicketRequester) => {
           photo: true,
         },
       },
+
       assignedTo: {
-        select: { id: true, fullName: true, firstName: true, lastName: true },
+        select: {
+          id: true,
+          fullName: true,
+          firstName: true,
+          lastName: true,
+          photo: true,
+          role: true,
+        },
       },
     },
   });
 
   if (!ticket) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Support ticket not found.");
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      "Support ticket not found.",
+    );
   }
 
-  if (requester.role !== "ADMIN" && ticket.userId !== requester.userId) {
-    throw new ApiError(httpStatus.FORBIDDEN, "Access denied.");
+  // User can only access their own ticket
+  if (
+    requester.role !== "ADMIN" &&
+    ticket.userId !== requester.userId
+  ) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "Access denied.",
+    );
   }
 
+  // Mark messages as read
   if (requester.role === "ADMIN" && ticket.unreadByAgent) {
     await prisma.support.update({
       where: { id: ticketId },
-      data: { unreadByAgent: false },
+      data: {
+        unreadByAgent: false,
+      },
     });
   }
+
   if (requester.role !== "ADMIN" && ticket.unreadByUser) {
     await prisma.support.update({
       where: { id: ticketId },
-      data: { unreadByUser: false },
+      data: {
+        unreadByUser: false,
+      },
     });
   }
 
