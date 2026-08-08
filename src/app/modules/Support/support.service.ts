@@ -4,7 +4,13 @@ import httpStatus from "http-status";
 import prisma from "../../../shared/prisma";
 import ApiError from "../../../errors/ApiErrors";
 import QueryBuilder from "../../../helpers/queryBuilder";
-import { TicketCategory, TicketCreatorType, TicketPriority, TicketStatus, UserRole } from "@prisma/client";
+import {
+  TicketCategory,
+  TicketCreatorType,
+  TicketPriority,
+  TicketStatus,
+  UserRole,
+} from "@prisma/client";
 import { NotificationServices } from "../Notification/notification.service";
 import {
   AddTicketMessagePayload,
@@ -31,26 +37,29 @@ const generateTicketNumber = async () => {
 // ═════════════════════════════════════════════════════════════════════════════
 const createTicket = async (
   user: JwtPayload | undefined,
+  files: Express.Multer.File[],
   payload: CreateSupportTicketPayload,
 ) => {
   const isLoggedIn = !!user;
 
   if (!isLoggedIn) {
     if (!payload.guestName?.trim()) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        "Guest name is required.",
-      );
+      throw new ApiError(httpStatus.BAD_REQUEST, "Guest name is required.");
     }
 
     if (!payload.guestEmail) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        "Email is required.",
-      );
+      throw new ApiError(httpStatus.BAD_REQUEST, "Email is required.");
     }
   }
+  let attachmentUrls: string[] = [];
 
+  if (files?.length) {
+    const uploads = await Promise.all(
+      files.map((file) => uploadFileToS3(file)),
+    );
+
+    attachmentUrls = uploads.map((item) => item.fileUrl);
+  }
   const ticketNumber = await generateTicketNumber();
 
   const ticket = await prisma.support.create({
@@ -77,7 +86,7 @@ const createTicket = async (
       relatedWithdrawId: payload.relatedWithdrawId,
       relatedTransactionId: payload.relatedTransactionId,
 
-      attachments: payload.attachments ?? [],
+      attachments: attachmentUrls ?? [],
 
       lastMessageAt: new Date(),
       lastMessageById: isLoggedIn ? user.id : null,
@@ -103,10 +112,7 @@ const createTicket = async (
 // ═════════════════════════════════════════════════════════════════════════════
 // GET MY TICKETS (logged-in user's own tickets)
 // ═════════════════════════════════════════════════════════════════════════════
-const getMyTickets = async (
-  userId: string,
-  query: Record<string, unknown>,
-) => {
+const getMyTickets = async (userId: string, query: Record<string, unknown>) => {
   const queryBuilder = new QueryBuilder(prisma.support, query);
 
   const tickets = await queryBuilder
@@ -126,18 +132,54 @@ const getMyTickets = async (
 // GET ALL TICKETS (admin inbox — filterable by status/category/priority etc.)
 // ═════════════════════════════════════════════════════════════════════════════
 const getAllTickets = async (query: Record<string, unknown>) => {
-  const queryBuilder = new QueryBuilder(prisma.support, query);
+  const finalQuery = {
+    ...query,
+    sort: query.sort || "-lastMessageAt",
+  };
+
+  const queryBuilder = new QueryBuilder(
+    prisma.support,
+    finalQuery
+  );
 
   const tickets = await queryBuilder
-    .search(["subject", "description", "ticketNumber", "guestEmail"])
+    .search([
+      "user.fullName",
+      "user.phone",
+      "user.email",
+      "subject",
+      "description",
+      "ticketNumber",
+      "guestEmail",
+    ])
     .filter()
     .sort()
+    .include({
+      user: {
+        select: {
+          firstName: true,
+          lastName: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          photo: true,
+        },
+      },
+      _count: {
+        select: {
+          messages: true,
+        },
+      },
+    })
     .paginate()
     .execute();
 
   const meta = await queryBuilder.countTotal();
 
-  return { data: tickets, meta };
+  return {
+    data: tickets,
+    meta,
+  };
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -268,7 +310,7 @@ const addMessage = async (payload: AddTicketMessagePayload) => {
   if (!isAgent && isInternalNote) {
     throw new ApiError(
       httpStatus.FORBIDDEN,
-      "Only admins can add internal notes."
+      "Only admins can add internal notes.",
     );
   }
 
@@ -276,7 +318,7 @@ const addMessage = async (payload: AddTicketMessagePayload) => {
   if (ticket.status === TicketStatus.CLOSED) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
-      "Ticket is closed. Please reopen it first."
+      "Ticket is closed. Please reopen it first.",
     );
   }
 
@@ -284,7 +326,9 @@ const addMessage = async (payload: AddTicketMessagePayload) => {
   let attachmentUrls: string[] = [];
 
   if (files?.length) {
-    const uploads = await Promise.all(files.map((file) => uploadFileToS3(file)));
+    const uploads = await Promise.all(
+      files.map((file) => uploadFileToS3(file)),
+    );
 
     attachmentUrls = uploads.map((item) => item.fileUrl);
   }
@@ -311,9 +355,7 @@ const addMessage = async (payload: AddTicketMessagePayload) => {
           ? ticketMessage.createdAt
           : ticket.lastMessageAt,
 
-        lastMessageById: isVisibleReply
-          ? senderId
-          : ticket.lastMessageById,
+        lastMessageById: isVisibleReply ? senderId : ticket.lastMessageById,
 
         unreadByUser: isVisibleReply && isAgent,
         unreadByAgent: isVisibleReply && !isAgent,
@@ -412,7 +454,7 @@ const updateStatus = async (ticketId: string, status: TicketStatus) => {
     CLOSED: "TICKET_CLOSED",
     REOPENED: "TICKET_REOPENED",
   };
-  const notifType:any = notifTypeMap[status];
+  const notifType: any = notifTypeMap[status];
 
   if (ticket.userId && notifType) {
     await NotificationServices.SendNotification({

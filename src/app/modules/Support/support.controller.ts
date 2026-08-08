@@ -7,9 +7,7 @@ import { SupportTicketServices } from "./support.service";
 
 // ── create ticket (logged-in user OR guest) ────────────────
 const createTicket = catchAsync(async (req, res) => {
-  const userId = req.user?.id; // undefined when raised by a guest
-
-const result = await SupportTicketServices.createTicket(req.user, req.body);
+  const result = await SupportTicketServices.createTicket(req.user,  req.files as Express.Multer.File[], req.body);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,

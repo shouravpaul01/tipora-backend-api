@@ -14,6 +14,9 @@ const router = express.Router();
 // If guest-raised tickets should be disallowed, wrap with auth("USER", "ADMIN").
 router.post(
   "/",
+  auth({optional:true}),
+  fileUploader.array("attachments", { required: false }),
+  parseBodyData,
   validateRequest(SupportTicketValidations.createTicket),
   SupportTicketControllers.createTicket,
 );
@@ -47,7 +50,7 @@ router.patch(
 router.post(
   "/:ticketId/messages",
   auth("USER", "ADMIN"),
-  fileUploader.array("attachments"),
+  fileUploader.array("attachments", { required: false }),
   parseBodyData,
   validateRequest(SupportTicketValidations.addMessage),
   SupportTicketControllers.addMessage,

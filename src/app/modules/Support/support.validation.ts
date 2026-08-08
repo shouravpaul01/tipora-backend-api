@@ -35,24 +35,24 @@ const createTicket = z.object({
 
       attachments: z.array(z.string()).optional(),
     })
-    .superRefine((data, ctx) => {
-      // guest endpoint-এর জন্য validation
-      if (!data.guestName?.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["guestName"],
-          message: "Guest name is required.",
-        });
-      }
+    // .superRefine((data, ctx) => {
+    //   // guest endpoint-এর জন্য validation
+    //   if (!data.guestName?.trim()) {
+    //     ctx.addIssue({
+    //       code: "custom",
+    //       path: ["guestName"],
+    //       message: "Guest name is required.",
+    //     });
+    //   }
 
-      if (!data.guestEmail && !data.guestPhone) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["guestEmail"],
-          message: "Guest email or phone is required.",
-        });
-      }
-    }),
+    //   if (!data.guestEmail && !data.guestPhone) {
+    //     ctx.addIssue({
+    //       code: "custom",
+    //       path: ["guestEmail"],
+    //       message: "Guest email or phone is required.",
+    //     });
+    //   }
+    // }),
 });
 
 // ═══════════════════════════════════════════════
