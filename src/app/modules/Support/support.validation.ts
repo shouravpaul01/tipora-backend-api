@@ -107,11 +107,16 @@ const rateTicket = z.object({
       .optional(),
   }),
 });
-
+const updatePriority = z.object({
+  body: z.object({
+    priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
+  }),
+});
 export const SupportTicketValidations = {
   createTicket,
   addMessage,
   assignTicket,
   updateStatus,
   rateTicket,
+  updatePriority
 };

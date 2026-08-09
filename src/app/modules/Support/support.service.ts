@@ -520,7 +520,49 @@ const updateStatus = async (ticketId: string, status: TicketStatus) => {
 
   return updated;
 };
+const updateTicketPriority = async (
+  ticketId: string,
+  priority: TicketPriority,
+) => {
+  const ticket = await prisma.support.findUnique({
+    where: {
+      id: ticketId,
+    },
+    select: {
+      id: true,
+      ticketNumber: true,
+      priority: true,
+      status: true,
+    },
+  });
 
+  if (!ticket) {
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      "Support ticket not found",
+    );
+  }
+
+  if (ticket.priority === priority) {
+    return ticket;
+  }
+
+  return prisma.support.update({
+    where: {
+      id: ticketId,
+    },
+    data: {
+      priority,
+    },
+    select: {
+      id: true,
+      ticketNumber: true,
+      priority: true,
+      status: true,
+      updatedAt: true,
+    },
+  });
+};
 // ═════════════════════════════════════════════════════════════════════════════
 // REOPEN TICKET (by the raiser) — only from RESOLVED / CLOSED
 // ═════════════════════════════════════════════════════════════════════════════
@@ -585,6 +627,7 @@ export const SupportTicketServices = {
   assignTicket,
   addMessage,
   updateStatus,
+  updateTicketPriority,
   reopenTicket,
   rateTicket,
 };

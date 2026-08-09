@@ -85,6 +85,14 @@ router.patch(
   SupportTicketControllers.updateStatus,
 );
 
+// Update ticket priority
+router.patch(
+  "/:ticketId/priority",
+  auth(UserRole.ADMIN),
+  validateRequest(SupportTicketValidations.updatePriority),
+  SupportTicketControllers.updateTicketPriority,
+);
+
 /**
  * ============================================================
  * Shared Ticket Routes
@@ -103,8 +111,7 @@ router.post(
 );
 
 // Get single ticket details
-// Access control should be handled inside the service/controller
-// so users can only access their own tickets.
+// Access control should be handled inside the service/controller.
 router.get(
   "/:ticketId",
   auth(UserRole.USER, UserRole.ADMIN),

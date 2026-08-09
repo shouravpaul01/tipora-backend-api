@@ -108,7 +108,22 @@ const updateStatus = catchAsync(async (req, res) => {
     data: result,
   });
 });
+const updateTicketPriority = catchAsync(async (req, res) => {
+  const { ticketId } = req.params;
+  const { priority } = req.body;
 
+  const result = await SupportTicketServices.updateTicketPriority(
+    ticketId as string,
+    priority,
+  );
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Ticket priority updated successfully",
+    data: result,
+  });
+});
 // ── reopen ticket (raiser) ─────────────────────────────────
 const reopenTicket = catchAsync(async (req, res) => {
   const result = await SupportTicketServices.reopenTicket(
@@ -148,6 +163,7 @@ export const SupportTicketControllers = {
   assignTicket,
   addMessage,
   updateStatus,
+  updateTicketPriority,
   reopenTicket,
   rateTicket,
 };
