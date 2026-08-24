@@ -74,7 +74,15 @@ const removePaymentMethod = catchAsync(async (req: Request, res: Response) => {
     data: null,
   });
 });
-
+const getStripeKey = catchAsync(async (req: Request, res: Response) => {
+  const result = await PaymentMethodServices.getStripeKey();
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Successfully fetched",
+    data: result,
+  });
+});
 export const PaymentMethodController = {
   createSetupIntent,
   addCard,
@@ -82,4 +90,5 @@ export const PaymentMethodController = {
   getMyPaymentMethods,
   setDefault,
   removePaymentMethod,
+  getStripeKey
 };

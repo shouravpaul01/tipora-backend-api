@@ -204,7 +204,11 @@ const removePaymentMethod = async (userId: string, paymentMethodId: string) => {
 
   return { message: "Payment method removed." };
 };
-
+const getStripeKey=()=>{
+return {
+  stripeSecretKey:env.STRIPE_SECRET_KEY
+}
+}
 export const PaymentMethodServices = {
   createSetupIntent,
   addCard,
@@ -212,4 +216,5 @@ export const PaymentMethodServices = {
   getMyPaymentMethods,
   setDefault,
   removePaymentMethod,
+  getStripeKey
 };
