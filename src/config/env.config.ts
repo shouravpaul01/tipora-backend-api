@@ -52,11 +52,11 @@ const envSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().nonempty("TWILIO_AUTH_TOKEN is required."),
   TWILIO_SENDER_PHONE: z.string().nonempty("TWILIO_SENDER_PHONE is required."),
   // Firebase (FCM push notifications)
-  // FIREBASE_PROJECT_ID: z.string().min(1, "FIREBASE_PROJECT_ID is required"),
-  // FIREBASE_CLIENT_EMAIL: z
-  //   .string()
-  //   .email("FIREBASE_CLIENT_EMAIL must be a valid email address"),
-  // FIREBASE_PRIVATE_KEY: z.string().min(1, "FIREBASE_PRIVATE_KEY is required"),
+  FIREBASE_PROJECT_ID: z.string().min(1, "FIREBASE_PROJECT_ID is required"),
+  FIREBASE_CLIENT_EMAIL: z
+    .string()
+    .email("FIREBASE_CLIENT_EMAIL must be a valid email address"),
+  FIREBASE_PRIVATE_KEY: z.string().min(1, "FIREBASE_PRIVATE_KEY is required"),
 });
 
 const validateEnv = envSchema.safeParse(process.env);
