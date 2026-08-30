@@ -1,6 +1,6 @@
-# Tipora — Backend API
+# Tipora -- Backend API
 
-**A real-time, Stripe-powered tipping platform where anyone can send a tip to one person or split it across multiple performers — instantly or via standard payout — with zero platform fee on standard withdrawals.**
+**A real time, Stripe-powered tipping platform where anyone can send a tip to one person or split it across multiple performers  instantly or via standard payout  with zero platform fee on standard withdrawals.**
 
 
 
@@ -24,11 +24,11 @@
 
 ## What is Tipora?
 
-Tipora is a **real-time tip-sharing platform** built for performers, content creators, and service professionals. It allows any registered user to send a monetary tip to one person or divide a single tip amount across multiple recipients simultaneously — all in a single transaction.
+Tipora is a **real-time tip-sharing platform** built for performers, content creators, and service professionals. It allows any registered user to send a monetary tip to one person or divide a single tip amount across multiple recipients simultaneously all in a single transaction.
 
 The platform is built around **Stripe Connect**, which handles the full lifecycle of money movement: from collecting payment from the sender's saved card (or Apple/Google Pay) to distributing funds into each receiver's connected bank account. Receivers first complete a **Stripe Express onboarding** to verify their identity and link their bank details. Once verified, they can withdraw their earned balance either on the standard schedule (free, 1–2 business days) or as an instant payout (3% platform fee deducted, funds arrive within minutes).
 
-Tipping in person is supported via **QR code scanning** — each performer has a unique QR code that opens their tip page directly in the app, removing any search friction.
+Tipping in person is supported via **QR code scanning**  each performer has a unique QR code that opens their tip page directly in the app, removing any search friction.
 
 The system also includes an internal **wallet** per user that tracks available balance, pending amounts, and total lifetime earnings. All tip transactions, payout records, and platform revenue are persisted and accessible to administrators through a dedicated dashboard with charts and analytics.
 
