@@ -2,5 +2,8 @@ node_modules
 dist
 .vercel
 
+.env
+.env.*
+!.env.example
 
 /src/generated/prisma

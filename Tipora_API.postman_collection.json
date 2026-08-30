@@ -1,0 +1,924 @@
+{
+  "info": {
+    "name": "Tipora Backend API",
+    "description": "Complete API collection for the Tipora backend.\n\n**Base URL:** `{{baseUrl}}`\n\n**Auth:** Cookie-based JWT. After login/register, `accessToken` and `refreshToken` are set via HTTP-only cookies automatically.\n\n**Variables:**\n- `baseUrl` → `http://localhost:5000/api/v1`\n- `accessToken` → auto-populated after login\n- `refreshToken` → auto-populated after login",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "tipora-api-collection-v1"
+  },
+  "variable": [
+    { "key": "baseUrl",       "value": "http://localhost:5000/api/v1", "type": "string" },
+    { "key": "accessToken",   "value": "",  "type": "string" },
+    { "key": "refreshToken",  "value": "",  "type": "string" },
+    { "key": "userId",        "value": "",  "type": "string" },
+    { "key": "ticketId",      "value": "",  "type": "string" },
+    { "key": "tipId",         "value": "",  "type": "string" },
+    { "key": "withdrawId",    "value": "",  "type": "string" },
+    { "key": "paymentMethodId","value": "", "type": "string" },
+    { "key": "notificationId","value": "",  "type": "string" },
+    { "key": "platformRevenueId","value": "","type": "string" }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key",   "value": "Authorization", "type": "string" },
+      { "key": "value", "value": "Bearer {{accessToken}}", "type": "string" },
+      { "key": "in",    "value": "header", "type": "string" }
+    ]
+  },
+  "item": [
+
+    {
+      "name": "🔐 Auth",
+      "description": "Registration, OTP verification, login, logout, password reset flows.",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  if (body?.data?.user?.id) {",
+                  "    pm.collectionVariables.set('userId', body.data.user.id);",
+                  "  }",
+                  "  pm.test('Registration successful', () => pm.expect(pm.response.code).to.equal(201));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"password123\",\n  \"phone\": \"+8801700000000\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth","register"] }
+          }
+        },
+        {
+          "name": "Verify OTP (Email)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body?.data?.accessToken) pm.collectionVariables.set('accessToken', body.data.accessToken);",
+                  "  if (body?.data?.refreshToken) pm.collectionVariables.set('refreshToken', body.data.refreshToken);",
+                  "  if (body?.data?.user?.id) pm.collectionVariables.set('userId', body.data.user.id);",
+                  "  pm.test('OTP verified & tokens received', () => pm.expect(pm.response.code).to.equal(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"otp\": \"123456\",\n  \"fcmToken\": \"optional-fcm-device-token\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/verify-otp", "host": ["{{baseUrl}}"], "path": ["auth","verify-otp"] }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body?.data?.accessToken) pm.collectionVariables.set('accessToken', body.data.accessToken);",
+                  "  if (body?.data?.refreshToken) pm.collectionVariables.set('refreshToken', body.data.refreshToken);",
+                  "  if (body?.data?.user?.id) pm.collectionVariables.set('userId', body.data.user.id);",
+                  "  pm.test('Login successful', () => pm.expect(pm.response.code).to.equal(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+8801700000000\",\n  \"password\": \"password123\",\n  \"fcmToken\": \"optional-fcm-device-token\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth","login"] }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body?.data?.accessToken) pm.collectionVariables.set('accessToken', body.data.accessToken);",
+                  "  pm.test('Token refreshed', () => pm.expect(pm.response.code).to.equal(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/refresh-token", "host": ["{{baseUrl}}"], "path": ["auth","refresh-token"] }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["auth","forgot-password"] }
+          }
+        },
+        {
+          "name": "Verify Reset OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body?.data?.resetToken) pm.collectionVariables.set('resetToken', body.data.resetToken);",
+                  "  pm.test('Reset OTP verified', () => pm.expect(pm.response.code).to.equal(200));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/verify-reset-otp", "host": ["{{baseUrl}}"], "path": ["auth","verify-reset-otp"] }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resetToken\": \"{{resetToken}}\",\n  \"newPassword\": \"newStrongPassword123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["auth","reset-password"] }
+          }
+        },
+        {
+          "name": "Change Password  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"password123\",\n  \"newPassword\": \"newStrongPassword123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/change-password", "host": ["{{baseUrl}}"], "path": ["auth","change-password"] }
+          }
+        },
+        {
+          "name": "Logout  🔒",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('accessToken', '');",
+                  "pm.collectionVariables.set('refreshToken', '');",
+                  "pm.test('Logged out', () => pm.expect(pm.response.code).to.equal(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth","logout"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "👤 Users",
+      "description": "User profile management and admin user operations.",
+      "item": [
+        {
+          "name": "Get My Profile  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/users/me", "host": ["{{baseUrl}}"], "path": ["users","me"] }
+          }
+        },
+        {
+          "name": "Update My Profile  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "firstName", "value": "Jane",              "type": "text" },
+                { "key": "lastName",  "value": "Doe",               "type": "text" },
+                { "key": "email",     "value": "jane@example.com",  "type": "text" },
+                { "key": "phone",     "value": "+8801700000001",    "type": "text" },
+                { "key": "photo",     "type": "file",               "src": [],  "description": "Profile photo (optional)" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/users/me", "host": ["{{baseUrl}}"], "path": ["users","me"] }
+          }
+        },
+        {
+          "name": "Delete My Account  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/users/me", "host": ["{{baseUrl}}"], "path": ["users","me"] }
+          }
+        },
+        {
+          "name": "Start Onboarding  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/users/me/onboarding", "host": ["{{baseUrl}}"], "path": ["users","me","onboarding"] }
+          }
+        },
+        {
+          "name": "Update Onboarding Status  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/users/me/onboarding/status", "host": ["{{baseUrl}}"], "path": ["users","me","onboarding","status"] }
+          }
+        },
+        {
+          "name": "Get User Summary  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/users/summary", "host": ["{{baseUrl}}"], "path": ["users","summary"] }
+          }
+        },
+        {
+          "name": "Get All Users  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&limit=10&search=",
+              "host": ["{{baseUrl}}"], "path": ["users"],
+              "query": [
+                { "key": "page",   "value": "1" },
+                { "key": "limit",  "value": "10" },
+                { "key": "search", "value": "", "description": "Search by name/email/phone" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Single User (Auth User)  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/users/details/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users","details","{{userId}}"] }
+          }
+        },
+        {
+          "name": "Get Single User (Admin)  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users","{{userId}}"] }
+          }
+        },
+        {
+          "name": "Update User Status  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"BLOCKED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}/status", "host": ["{{baseUrl}}"], "path": ["users","{{userId}}","status"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "💸 Tips",
+      "description": "Send tips to performers and view tip history.",
+      "item": [
+        {
+          "name": "Send Tip  🔒",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body?.data?.id) pm.collectionVariables.set('tipId', body.data.id);",
+                  "  pm.test('Tip sent', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiverIds\": [\"receiver-user-id-1\", \"receiver-user-id-2\"],\n  \"totalAmount\": 10.00,\n  \"message\": \"Great performance!\",\n  \"walletToken\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/tips/send", "host": ["{{baseUrl}}"], "path": ["tips","send"] }
+          }
+        },
+        {
+          "name": "Get My Sent Tips  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/tips/my-tips?page=1&limit=10",
+              "host": ["{{baseUrl}}"], "path": ["tips","my-tips"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Tip Summary  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/tips/summary", "host": ["{{baseUrl}}"], "path": ["tips","summary"] }
+          }
+        },
+        {
+          "name": "Get All Tips  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/tips?page=1&limit=10",
+              "host": ["{{baseUrl}}"], "path": ["tips"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Single Tip  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/tips/{{tipId}}", "host": ["{{baseUrl}}"], "path": ["tips","{{tipId}}"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🏦 Withdraw",
+      "description": "Withdrawal requests and admin management.",
+      "item": [
+        {
+          "name": "Request Withdrawal  🔒 USER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body?.data?.id) pm.collectionVariables.set('withdrawId', body.data.id);",
+                  "  pm.test('Withdraw requested', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 25.00\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/withdraw", "host": ["{{baseUrl}}"], "path": ["withdraw"] }
+          }
+        },
+        {
+          "name": "My Withdraw History  🔒 USER",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/withdraw/history?page=1&limit=10",
+              "host": ["{{baseUrl}}"], "path": ["withdraw","history"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Withdraw Summary  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/withdraw/summary", "host": ["{{baseUrl}}"], "path": ["withdraw","summary"] }
+          }
+        },
+        {
+          "name": "Get All Withdrawals  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/withdraw?page=1&limit=10",
+              "host": ["{{baseUrl}}"], "path": ["withdraw"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Single Withdrawal  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/withdraw/{{withdrawId}}", "host": ["{{baseUrl}}"], "path": ["withdraw","{{withdrawId}}"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "💳 Payment Methods",
+      "description": "Stripe cards and digital wallets management.",
+      "item": [
+        {
+          "name": "Get Stripe Publishable Key  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/payment-method/stripe-key", "host": ["{{baseUrl}}"], "path": ["payment-method","stripe-key"] }
+          }
+        },
+        {
+          "name": "Create Setup Intent  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/payment-method/setup-intent", "host": ["{{baseUrl}}"], "path": ["payment-method","setup-intent"] }
+          }
+        },
+        {
+          "name": "Add Card  🔒",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body?.data?.id) pm.collectionVariables.set('paymentMethodId', body.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stripePaymentMethodId\": \"pm_card_visa\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/payment-method/add-card", "host": ["{{baseUrl}}"], "path": ["payment-method","add-card"] }
+          }
+        },
+        {
+          "name": "Add Wallet  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"APPLE_PAY\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/payment-method/add-wallet", "host": ["{{baseUrl}}"], "path": ["payment-method","add-wallet"] }
+          }
+        },
+        {
+          "name": "Get My Payment Methods  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/payment-method", "host": ["{{baseUrl}}"], "path": ["payment-method"] }
+          }
+        },
+        {
+          "name": "Set Default Payment Method  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/payment-method/{{paymentMethodId}}/set-default", "host": ["{{baseUrl}}"], "path": ["payment-method","{{paymentMethodId}}","set-default"] }
+          }
+        },
+        {
+          "name": "Remove Payment Method  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/payment-method/{{paymentMethodId}}", "host": ["{{baseUrl}}"], "path": ["payment-method","{{paymentMethodId}}"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🔔 Notifications",
+      "description": "In-app notification management.",
+      "item": [
+        {
+          "name": "Get My Notifications  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=1&limit=20",
+              "host": ["{{baseUrl}}"], "path": ["notifications"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Count  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/notifications/unread-count", "host": ["{{baseUrl}}"], "path": ["notifications","unread-count"] }
+          }
+        },
+        {
+          "name": "Mark All as Read  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "url": { "raw": "{{baseUrl}}/notifications/mark-all-read", "host": ["{{baseUrl}}"], "path": ["notifications","mark-all-read"] }
+          }
+        },
+        {
+          "name": "Mark Single as Read  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "url": { "raw": "{{baseUrl}}/notifications/{{notificationId}}/read", "host": ["{{baseUrl}}"], "path": ["notifications","{{notificationId}}","read"] }
+          }
+        },
+        {
+          "name": "Delete All Notifications  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/notifications", "host": ["{{baseUrl}}"], "path": ["notifications"] }
+          }
+        },
+        {
+          "name": "Delete Single Notification  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/notifications/{{notificationId}}", "host": ["{{baseUrl}}"], "path": ["notifications","{{notificationId}}"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🎟️ Support Tickets",
+      "description": "Support ticket lifecycle — creation, messaging, admin management.",
+      "item": [
+        {
+          "name": "Create Ticket (Guest / User)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if ([200,201].includes(pm.response.code)) {",
+                  "  const body = pm.response.json();",
+                  "  if (body?.data?.id) pm.collectionVariables.set('ticketId', body.data.id);",
+                  "  pm.test('Ticket created', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "subject",     "value": "Issue with tip payment",     "type": "text" },
+                { "key": "description", "value": "My tip did not go through and the amount was deducted from my wallet.", "type": "text" },
+                { "key": "category",    "value": "PAYMENT",  "type": "text", "description": "PAYMENT | ACCOUNT | TECHNICAL | GENERAL" },
+                { "key": "priority",    "value": "MEDIUM",   "type": "text", "description": "LOW | MEDIUM | HIGH | URGENT" },
+                { "key": "attachments", "type": "file", "src": [], "description": "Optional — image/document attachments" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/support", "host": ["{{baseUrl}}"], "path": ["support"] }
+          }
+        },
+        {
+          "name": "Get My Tickets  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/support/my-tickets?page=1&limit=10",
+              "host": ["{{baseUrl}}"], "path": ["support","my-tickets"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Ticket Details  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/support/{{ticketId}}", "host": ["{{baseUrl}}"], "path": ["support","{{ticketId}}"] }
+          }
+        },
+        {
+          "name": "Add Message / Reply  🔒",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "message",        "value": "This is my reply to the support ticket.",  "type": "text" },
+                { "key": "isInternalNote", "value": "false", "type": "text", "description": "Admin only — true for internal notes" },
+                { "key": "attachments",    "type": "file", "src": [] }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/support/{{ticketId}}/messages", "host": ["{{baseUrl}}"], "path": ["support","{{ticketId}}","messages"] }
+          }
+        },
+        {
+          "name": "Reopen Ticket  🔒 USER",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "url": { "raw": "{{baseUrl}}/support/{{ticketId}}/reopen", "host": ["{{baseUrl}}"], "path": ["support","{{ticketId}}","reopen"] }
+          }
+        },
+        {
+          "name": "Rate Ticket  🔒 USER",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"ratingComment\": \"Very helpful and fast response!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/support/{{ticketId}}/rate", "host": ["{{baseUrl}}"], "path": ["support","{{ticketId}}","rate"] }
+          }
+        },
+        {
+          "name": "Get All Tickets  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/support?page=1&limit=10&status=OPEN",
+              "host": ["{{baseUrl}}"], "path": ["support"],
+              "query": [
+                { "key": "page",   "value": "1" },
+                { "key": "limit",  "value": "10" },
+                { "key": "status", "value": "OPEN", "description": "OPEN | IN_PROGRESS | RESOLVED | CLOSED" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Assign Ticket  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignedToId\": \"admin-user-id\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/support/{{ticketId}}/assign", "host": ["{{baseUrl}}"], "path": ["support","{{ticketId}}","assign"] }
+          }
+        },
+        {
+          "name": "Update Ticket Status  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/support/{{ticketId}}/status", "host": ["{{baseUrl}}"], "path": ["support","{{ticketId}}","status"] }
+          }
+        },
+        {
+          "name": "Update Ticket Priority  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"priority\": \"HIGH\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/support/{{ticketId}}/priority", "host": ["{{baseUrl}}"], "path": ["support","{{ticketId}}","priority"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "💰 Platform Revenue",
+      "description": "Admin-only platform revenue tracking.",
+      "item": [
+        {
+          "name": "Get Revenue Summary  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/platform-revenue/summary", "host": ["{{baseUrl}}"], "path": ["platform-revenue","summary"] }
+          }
+        },
+        {
+          "name": "Get All Platform Revenues  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/platform-revenue?page=1&limit=10",
+              "host": ["{{baseUrl}}"], "path": ["platform-revenue"],
+              "query": [
+                { "key": "page",  "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Single Revenue Record  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/platform-revenue/{{platformRevenueId}}", "host": ["{{baseUrl}}"], "path": ["platform-revenue","{{platformRevenueId}}"] }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "📊 Dashboard (Admin Overview)",
+      "description": "Admin dashboard overview, charts, and analytics.",
+      "item": [
+        {
+          "name": "Get Full Overview  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/dashboard/overview", "host": ["{{baseUrl}}"], "path": ["dashboard","overview"] }
+          }
+        },
+        {
+          "name": "Get Dashboard Cards  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/dashboard/cards", "host": ["{{baseUrl}}"], "path": ["dashboard","cards"] }
+          }
+        },
+        {
+          "name": "Get Revenue Charts  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/dashboard/revenue-charts", "host": ["{{baseUrl}}"], "path": ["dashboard","revenue-charts"] }
+          }
+        },
+        {
+          "name": "Get Growth Charts  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/dashboard/growth-charts", "host": ["{{baseUrl}}"], "path": ["dashboard","growth-charts"] }
+          }
+        },
+        {
+          "name": "Get Comparison Data  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/dashboard/comparison", "host": ["{{baseUrl}}"], "path": ["dashboard","comparison"] }
+          }
+        },
+        {
+          "name": "Get Recent Users  🔒 ADMIN",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/recent-users?limit=10",
+              "host": ["{{baseUrl}}"], "path": ["dashboard","recent-users"],
+              "query": [{ "key": "limit", "value": "10" }]
+            }
+          }
+        }
+      ]
+    }
+
+  ]
+}

@@ -4,71 +4,46 @@ import httpStatus from "http-status";
 import prisma from "../../../shared/prisma";
 import ApiPathError from "../../../errors/ApiPathError";
 import redis from "../../../shared/redis";
-import { jwtHelpers } from "../../../helpers/jwtHelpers";
 import { generateOtp } from "../../../utils/generateOtp";
-import { env } from "../../../config/env.config";
 import ApiError from "../../../errors/ApiErrors";
-import { sendSMS } from "../../../helpers/sendSMS";
-import { User } from "@prisma/client";
-import ms, { StringValue } from "ms";
-const cookiesDomain= env.NODE_ENV === "production"
-        ? ".app--magic.com"
-        : undefined
-const setTokenCookies = (res: any, user: Partial<User>) => {
-  const accessToken = jwtHelpers.generateToken(
-    { ...user },
-    env.JWT_SECRET,
-    env.EXPIRES_IN as any,
-  );
+import { emailQueue } from "../../../services/Email/email.queue";
+import { setTokenCookies, cookiesDomain, AuthUtils } from "./auth.utils";
+import { jwtHelpers } from "../../../helpers/jwtHelpers";
+import { env } from "../../../config/env.config";
 
-  const refreshToken = jwtHelpers.generateToken(
-    { user },
-    env.REFRESH_TOKEN_SECRET!,
-    env.REFRESH_TOKEN_EXPIRES_IN as any,
-  );
-
-  const cookieOptions = {
-    httpOnly: true,
-    secure: env.NODE_ENV === "production",
-    sameSite: "lax" as const,
-    domain:cookiesDomain,
-    path: "/",
-  };
-
-  res.cookie("accessToken", accessToken, {
-    ...cookieOptions,
-    maxAge: ms(env.EXPIRES_IN as StringValue),
-  });
-
-  res.cookie("refreshToken", refreshToken, {
-    ...cookieOptions,
-    maxAge: ms(env.REFRESH_TOKEN_EXPIRES_IN as StringValue),
-  });
-
-  return {
-    accessToken,
-    refreshToken,
-  };
-};
 
 // ── register ──────────────────────────────────────────────────────────────────
-// Creates the user and sends a phone OTP for verification.
+// Creates the user and sends an email OTP for verification.
 
 
 const register = async (payload: {
   firstName: string;
   lastName: string;
-  email?: string;
+  email: string;
   password: string;
   phone: string;
 }) => {
-  const existingUser = await prisma.user.findUnique({
+  // ── Check duplicate email ─────────────────────────────────────────
+  const existingByEmail = await prisma.user.findUnique({
+    where: { email: payload.email },
+    include: { auth: true },
+  });
+
+  if (existingByEmail?.isPhoneVerified) {
+    throw new ApiPathError(
+      httpStatus.CONFLICT,
+      "email",
+      "An account with this email already exists.",
+    );
+  }
+
+  // ── Check duplicate phone ─────────────────────────────────────────
+  const existingByPhone = await prisma.user.findUnique({
     where: { phone: payload.phone },
     include: { auth: true },
   });
 
-  // ── Verified account already exists ───────────────────────────────
-  if (existingUser?.isPhoneVerified) {
+  if (existingByPhone?.isPhoneVerified) {
     throw new ApiPathError(
       httpStatus.CONFLICT,
       "phone",
@@ -81,10 +56,13 @@ const register = async (payload: {
 
   let user;
 
+  // Prefer updating by email if found unverified, else by phone
+  const existingUser = existingByEmail || existingByPhone;
+
   if (existingUser) {
     // ── Update existing unverified user ─────────────────────────────
     user = await prisma.user.update({
-      where: { phone: payload.phone },
+      where: { id: existingUser.id },
       data: {
         ...userData,
         fullName: `${payload.firstName} ${payload.lastName}`,
@@ -111,12 +89,13 @@ const register = async (payload: {
     });
   }
 
-  // ── OTP send (একবারই) ────────────────────────────────────────────
+  // ── OTP send via Email ────────────────────────────────────────────
   const otp = generateOtp();
-  await redis.set(`otp:register:${payload.phone}`, otp, "EX", 5 * 60);
-  await sendSMS({
-    body: `Your OTP code is ${otp}. It expires in 5 minutes.`,
-    to: payload.phone,
+  await redis.set(`otp:register:${payload.email}`, otp, "EX", 5 * 60);
+  await emailQueue.add("send-otp", {
+    to: payload.email,
+    subject: "Your OTP Code – Tipora",
+    html: AuthUtils.otpEmailTemplate(payload.firstName, otp),
   });
 
   return { user };
@@ -124,13 +103,13 @@ const register = async (payload: {
 
 
 // ── verify OTP ────────────────────────────────────────────────────────────────
-// Verifies the phone OTP sent during registration.
+// Verifies the email OTP sent during registration.
 
 const verifyOtp = async (
-  payload: { phone: string; otp: string; fcmToken?: string },
+  payload: { email: string; otp: string; fcmToken?: string },
   res: any,
 ) => {
-  const storedOtp = await redis.get(`otp:register:${payload.phone}`);
+  const storedOtp = await redis.get(`otp:register:${payload.email}`);
   if (!storedOtp || storedOtp !== payload.otp) {
     throw new ApiPathError(
       httpStatus.BAD_REQUEST,
@@ -139,14 +118,14 @@ const verifyOtp = async (
     );
   }
 
-  //  Update user (verify phone)
+  //  Find user by email and mark as verified
   const user = await prisma.user.update({
-    where: { phone: payload.phone },
+    where: { email: payload.email },
     data: {
       isPhoneVerified: true,
       ...(payload.fcmToken && { fcmToken: payload.fcmToken }),
     },
-    select: { id: true, fullName: true, phone: true, email: true, role: true,photo:true },
+    select: { id: true, fullName: true, phone: true, email: true, role: true, photo: true },
   });
 
   //  Wallet check
@@ -163,9 +142,9 @@ const verifyOtp = async (
     });
   }
 
-  await redis.del(`otp:register:${payload.phone}`);
+  await redis.del(`otp:register:${payload.email}`);
 
-  const tokens = setTokenCookies(res, {id:user.id,role:user.role,email:user.email,phone:user.phone,fullName:user.fullName, photo:user.photo});
+  const tokens = AuthUtils.setTokenCookies(res, { id: user.id, role: user.role, email: user.email, phone: user.phone, fullName: user.fullName, photo: user.photo });
 
   return { user, ...tokens };
 };
@@ -212,37 +191,39 @@ const login = async (
   }
 
   const { auth, ...safeUser } = user;
-  const tokens = setTokenCookies(res, {id:user.id,role:user.role,email:user.email,phone:user.phone,fullName:user.fullName,photo:user.photo});
+  const tokens = AuthUtils.setTokenCookies(res, { id: user.id, role: user.role, email: user.email, phone: user.phone, fullName: user.fullName, photo: user.photo });
   return { user: safeUser, ...tokens };
 };
 
 // ── forgot password ───────────────────────────────────────────────────────────
-// Sends a password reset OTP to the user's phone number.
+// Sends a password reset OTP to the user's email address.
 
-const forgotPassword = async (payload: { phone: string }) => {
+const forgotPassword = async (payload: { email: string }) => {
   const user = await prisma.user.findUnique({
-    where: { phone: payload.phone },
+    where: { email: payload.email },
   });
 
   if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, "No account found with this phone number.");
+    // Generic message to avoid user enumeration
+    return { message: "If this email exists, an OTP has been sent." };
   }
 
   const otp = generateOtp();
-  await redis.set(`otp:reset:${payload.phone}`, otp, "EX", 10 * 60);
+  await redis.set(`otp:reset:${payload.email}`, otp, "EX", 10 * 60);
 
-  await sendSMS({
-    body: `Your password reset OTP is ${otp}. It expires in 10 minutes.`,
-    to: payload.phone,
+  await emailQueue.add("send-reset-otp", {
+    to: payload.email,
+    subject: "Password Reset OTP – Tipora",
+    html: AuthUtils.resetOtpEmailTemplate(user.fullName, otp),
   });
 
-  return { message: "If this phone number exists, an OTP has been sent." };
+  return { message: "If this email exists, an OTP has been sent." };
 };
 
 // ── verify reset OTP → return short-lived reset token ─────────────────────────
 
-const verifyResetOtp = async (payload: { phone: string; otp: string }) => {
-  const storedOtp = await redis.get(`otp:reset:${payload.phone}`);
+const verifyResetOtp = async (payload: { email: string; otp: string }) => {
+  const storedOtp = await redis.get(`otp:reset:${payload.email}`);
   if (!storedOtp || storedOtp !== payload.otp) {
     throw new ApiPathError(
       httpStatus.BAD_REQUEST,
@@ -251,11 +232,11 @@ const verifyResetOtp = async (payload: { phone: string; otp: string }) => {
     );
   }
 
-  await redis.del(`otp:reset:${payload.phone}`);
+  await redis.del(`otp:reset:${payload.email}`);
 
   // Issue a short-lived, single-use reset token (JWT)
   const resetToken = jwtHelpers.generateToken(
-    { phone: payload.phone, purpose: "password_reset" },
+    { email: payload.email, purpose: "password_reset" },
     env.RESET_PASS_TOKEN!,
     env.RESET_PASS_TOKEN_EXPIRES_IN as any,
   );
@@ -265,7 +246,7 @@ const verifyResetOtp = async (payload: { phone: string; otp: string }) => {
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
-  await redis.set(`reset_token:${tokenHash}`, payload.phone, "EX", 10 * 60);
+  await redis.set(`reset_token:${tokenHash}`, payload.email, "EX", 10 * 60);
 
   return { resetToken };
 };
@@ -276,7 +257,7 @@ const resetPassword = async (payload: {
   resetToken: string;
   newPassword: string;
 }) => {
-  let decoded: { phone: string; purpose: string };
+  let decoded: { email: string; purpose: string };
   try {
     decoded = jwtHelpers.verifyToken(
       payload.resetToken,
@@ -303,8 +284,8 @@ const resetPassword = async (payload: {
     .createHash("sha256")
     .update(payload.resetToken)
     .digest("hex");
-  const storedPhone = await redis.get(`reset_token:${tokenHash}`);
-  if (!storedPhone) {
+  const storedEmail = await redis.get(`reset_token:${tokenHash}`);
+  if (!storedEmail) {
     throw new ApiPathError(
       httpStatus.BAD_REQUEST,
       "resetToken",
@@ -315,7 +296,7 @@ const resetPassword = async (payload: {
   const hashedPassword = await bcrypt.hash(payload.newPassword, 12);
 
   await prisma.user.update({
-    where: { phone: decoded.phone },
+    where: { email: decoded.email },
     data: {
       auth: {
         update: {
@@ -348,7 +329,7 @@ const refreshToken = async (token: string, res: any) => {
 
   const user = await prisma.user.findUnique({
     where: { id: decoded.id },
- 
+
   });
 
   if (!user || user.isDeleted || user.status === "BLOCKED") {
@@ -359,7 +340,7 @@ const refreshToken = async (token: string, res: any) => {
     );
   }
 
-  const tokens = setTokenCookies(res, {id:user.id,role:user.role,email:user.email,phone:user.phone,fullName:user.fullName,photo:user.photo});
+  const tokens = AuthUtils.setTokenCookies(res, { id: user.id, role: user.role, email: user.email, phone: user.phone, fullName: user.fullName, photo: user.photo });
   return tokens;
 };
 
@@ -412,12 +393,12 @@ const changePassword = async (
 
 // ── logout ────────────────────────────────────────────────────────────────────
 
-const logout = async ( res: any) => {
+const logout = async (res: any) => {
   const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: env.NODE_ENV === "production",
     sameSite: "lax" as const,
-    domain:cookiesDomain,
+    domain: cookiesDomain,
     path: "/",
   };
 

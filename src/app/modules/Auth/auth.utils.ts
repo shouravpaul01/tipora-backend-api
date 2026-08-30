@@ -1,3 +1,45 @@
+import { User } from "@prisma/client";
+import { jwtHelpers } from "../../../helpers/jwtHelpers";
+import { env } from "../../../config/env.config";
+import ms, { StringValue } from "ms";
+
+export const cookiesDomain =
+  env.NODE_ENV === "production" ? ".app--magic.com" : undefined;
+
+export const setTokenCookies = (res: any, user: Partial<User>) => {
+  const accessToken = jwtHelpers.generateToken(
+    { ...user },
+    env.JWT_SECRET,
+    env.EXPIRES_IN as any,
+  );
+
+  const refreshToken = jwtHelpers.generateToken(
+    { user },
+    env.REFRESH_TOKEN_SECRET!,
+    env.REFRESH_TOKEN_EXPIRES_IN as any,
+  );
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    domain: cookiesDomain,
+    path: "/",
+  };
+
+  res.cookie("accessToken", accessToken, {
+    ...cookieOptions,
+    maxAge: ms(env.EXPIRES_IN as StringValue),
+  });
+
+  res.cookie("refreshToken", refreshToken, {
+    ...cookieOptions,
+    maxAge: ms(env.REFRESH_TOKEN_EXPIRES_IN as StringValue),
+  });
+
+  return { accessToken, refreshToken };
+};
+
 const createForgotPasswordTemplate = async (resetLink: string) => {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -104,4 +146,25 @@ const createForgotPasswordTemplate = async (resetLink: string) => {
 </html>`;
 };
 
-export const AuthUtils = { createForgotPasswordTemplate };
+const otpEmailTemplate = (firstName: string, otp: string): string => `
+  <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px">
+    <h2 style="color:#1d4ed8;margin-bottom:8px">Verify Your Email</h2>
+    <p>Hi <strong>${firstName}</strong>,</p>
+    <p>Use the OTP below to complete your registration. It expires in <strong>5 minutes</strong>.</p>
+    <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#111827;text-align:center;margin:24px 0">${otp}</div>
+    <p style="color:#6b7280;font-size:13px">If you didn't request this, please ignore this email.</p>
+  </div>
+`;
+
+const resetOtpEmailTemplate = (fullName: string, otp: string): string => `
+  <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px">
+    <h2 style="color:#dc2626;margin-bottom:8px">Password Reset Request</h2>
+    <p>Hi <strong>${fullName}</strong>,</p>
+    <p>Use the OTP below to reset your password. It expires in <strong>10 minutes</strong>.</p>
+    <div style="font-size:32px;font-weight:700;letter-spacing:8px;color:#111827;text-align:center;margin:24px 0">${otp}</div>
+    <p style="color:#6b7280;font-size:13px">If you didn't request a password reset, please ignore this email and your password will remain unchanged.</p>
+  </div>
+`;
+
+export const AuthUtils = { createForgotPasswordTemplate, setTokenCookies, cookiesDomain, otpEmailTemplate, resetOtpEmailTemplate };
+

@@ -1,11 +1,10 @@
-import { optional, z } from "zod";
+import { z } from "zod";
 
 const register = z.object({
   body: z.object({
     firstName: z.string().trim().nonempty("First name is required."),
     lastName: z.string().trim().nonempty("Last name is required."),
-    email: z
-      .string().optional(),
+    email: z.string().email("Please enter a valid email address."),
     password: z.string().min(6, "Password must be at least 6 characters."),
     phone: z.string().nonempty("Phone number is required"),
   }),
@@ -13,9 +12,9 @@ const register = z.object({
 
 const verifyOtp = z.object({
   body: z.object({
-     phone: z.string().nonempty("Phone number is required"),
+    email: z.string().email("Please enter a valid email address."),
     otp: z.string().length(6, "OTP must be 6 digits."),
-   fcmToken: z.string().nonempty("FCM token is required.").optional()
+    fcmToken: z.string().nonempty("FCM token is required.").optional()
   }),
 });
 
@@ -29,13 +28,13 @@ const login = z.object({
 
 const forgotPassword = z.object({
   body: z.object({
-    phone: z.string().nonempty("Phone number is required"),
+    email: z.string().email("Please enter a valid email address."),
   }),
 });
 
 const verifyResetOtp = z.object({
   body: z.object({
-     phone: z.string().nonempty("Phone number is required"),
+    email: z.string().email("Please enter a valid email address."),
     otp: z.string().length(6, "OTP must be 6 digits."),
   }),
 });
